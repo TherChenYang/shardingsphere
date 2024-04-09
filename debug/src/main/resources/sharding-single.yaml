@@ -1,0 +1,27 @@
+dataSources:
+  master:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: com.microsoft.sqlserver.jdbc.SQLServerDriver
+    jdbcUrl: jdbc:sqlserver://localhost:1433;DatabaseName=testDb;encrypt=false;
+    username: sa
+    password: MCYcxc19740203
+
+
+#dataSources:
+#  master:
+#    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+#    driverClassName: com.mysql.cj.jdbc.Driver
+#    jdbcUrl: jdbc:mysql://127.0.0.1:3306/test?serverTimezone=GMT%2B8&characterEncoding=utf8&useSSL=true
+#    username: root
+#    password: mcycxc19740203
+
+
+props:
+  sql-show: true
+
+
+rules:
+  - !SINGLE
+    tables:
+      - master.*
+    defaultDataSource: master

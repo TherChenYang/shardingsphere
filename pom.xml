@@ -36,16 +36,18 @@
         <module>db-protocol</module>
         <module>mode</module>
         <module>kernel</module>
-        
+        <module>debug</module>
+
         <module>jdbc</module>
         <module>proxy</module>
-        
+
         <module>features</module>
         <module>agent</module>
-        
+
         <module>test</module>
-        
+
         <module>distribution</module>
+        <module>debug</module>
     </modules>
     
     <properties>

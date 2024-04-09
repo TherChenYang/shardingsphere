@@ -1,0 +1,20 @@
+# 使用shardingSphere数据源
+spring:
+  datasource:
+    driver-class-name: org.apache.shardingsphere.driver.ShardingSphereDriver
+    url: jdbc:shardingsphere:classpath:sharding-single.yaml
+
+page helper:
+  helper-dialect: sqlserver2012
+
+#page helper:
+#  helper-dialect: mysql
+
+# 使用普通数据源
+#spring:
+#  datasource:
+#    hikari:
+#      driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+#      jdbc-url: jdbc:sqlserver://localhost:1433;DatabaseName=testDb;encrypt=false;
+#      username: sa
+#      password: MCYcxc19740203

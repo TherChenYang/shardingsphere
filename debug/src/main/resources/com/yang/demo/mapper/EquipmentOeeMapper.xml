@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.yang.demo.mapper.EquipmentOeeMapper">
+
+    <resultMap id="BaseResultMap" type="com.yang.demo.domain.EquipmentOee">
+            <id property="serialNo" column="serial_no" jdbcType="BIGINT"/>
+            <result property="equipmentId" column="equipment_id" jdbcType="VARCHAR"/>
+            <result property="statisticsCycle" column="statistics_cycle" jdbcType="VARCHAR"/>
+            <result property="statisticsTime" column="statistics_time" jdbcType="VARCHAR"/>
+            <result property="lastestStatusSerialNo" column="lastest_status_serial_no" jdbcType="BIGINT"/>
+            <result property="oeeRatio" column="oee_ratio" jdbcType="DOUBLE"/>
+            <result property="availability" column="availability" jdbcType="DOUBLE"/>
+            <result property="effectivenessPerformance" column="effectiveness_performance" jdbcType="DOUBLE"/>
+            <result property="qualityRatio" column="quality_ratio" jdbcType="DOUBLE"/>
+            <result property="actualProductionTime" column="actual_production_time" jdbcType="BIGINT"/>
+            <result property="planOccupancyTime" column="plan_occupancy_time" jdbcType="BIGINT"/>
+            <result property="beatTime" column="beat_time" jdbcType="DOUBLE"/>
+            <result property="producedQuantity" column="produced_quantity" jdbcType="BIGINT"/>
+            <result property="goodQuantity" column="good_quantity" jdbcType="BIGINT"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        serial_no,equipment_id,statistics_cycle,
+        statistics_time,lastest_status_serial_no,oee_ratio,
+        availability,effectiveness_performance,quality_ratio,
+        actual_production_time,plan_occupancy_time,beat_time,
+        produced_quantity,good_quantity
+    </sql>
+
+    <select id="queryList" resultMap="BaseResultMap">
+        select * from equipment_oee
+    </select>
+</mapper>

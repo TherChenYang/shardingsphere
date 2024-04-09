@@ -1,0 +1,33 @@
+dataSources:
+  ds_0:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: com.mysql.cj.jdbc.Driver
+    jdbcUrl: jdbc:mysql://127.0.0.1:3306/ds0?serverTimezone=GMT%2B8&useUnicode=true&characterEncoding=utf8&autoReconnect=true&allowMultiQueries=true
+    username: root
+    password: mcycxc19740203
+  ds_1:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: com.mysql.cj.jdbc.Driver
+    jdbcUrl: jdbc:mysql://127.0.0.1:3306/ds1?serverTimezone=GMT%2B8&useUnicode=true&characterEncoding=utf8&autoReconnect=true&allowMultiQueries=true
+    username: root
+    password: mcycxc19740203
+rules:
+  - !SHARDING
+    # 数据分片规则配置
+    tables:
+      books:
+        actualDataNodes: ds_0.books_2024$->{(1..2).collect(i->i.toString().padLeft(2,'0'))},ds_1.books_2024$->{(1..2).collect(i->i.toString().padLeft(2,'0'))}
+        tableStrategy:
+          standard:
+            shardingColumn: id
+            shardingAlgorithmName: book-alg
+      user:
+        actualDataNodes: ds_0.user,ds_1.user
+    shardingAlgorithms:
+      book-alg:
+        type: CLASS_BASED
+        props:
+          strategy: standard
+          algorithmClassName: com.example.shardingbugdemo.config.YearMonthShardingAlgorithm
+props:
+  sql-show: true
