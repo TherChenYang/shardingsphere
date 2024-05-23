@@ -38,7 +38,7 @@ import org.apache.shardingsphere.infra.metadata.database.resource.unit.StorageUn
 import org.apache.shardingsphere.infra.metadata.user.ShardingSphereUser;
 import org.apache.shardingsphere.infra.session.connection.ConnectionContext;
 import org.apache.shardingsphere.infra.session.connection.transaction.TransactionConnectionContext;
-import org.apache.shardingsphere.metadata.persist.MetaDataBasedPersistService;
+import org.apache.shardingsphere.metadata.persist.MetaDataPersistService;
 import org.apache.shardingsphere.mode.manager.ContextManager;
 import org.apache.shardingsphere.traffic.rule.TrafficRule;
 import org.apache.shardingsphere.transaction.ConnectionSavepointManager;
@@ -63,16 +63,13 @@ import java.util.Random;
 /**
  * Database connection manager of ShardingSphere-JDBC.
  */
-public final class DriverDatabaseConnectionManager extends OnlineDatabaseConnectionManager<Connection> implements AutoCloseable {
+public final class DriverDatabaseConnectionManager implements OnlineDatabaseConnectionManager<Connection>, AutoCloseable {
     
     private final Map<String, DataSource> dataSourceMap = new LinkedHashMap<>();
     
     private final Map<String, DataSource> physicalDataSourceMap = new LinkedHashMap<>();
     
     private final Map<String, DataSource> trafficDataSourceMap = new LinkedHashMap<>();
-    
-    @Getter
-    private final ConnectionTransaction connectionTransaction;
     
     private final Multimap<String, Connection> cachedConnections = LinkedHashMultimap.create();
     
@@ -101,7 +98,6 @@ public final class DriverDatabaseConnectionManager extends OnlineDatabaseConnect
             dataSourceMap.put(cacheKey, entry.getValue());
             trafficDataSourceMap.put(cacheKey, entry.getValue());
         }
-        connectionTransaction = createConnectionTransaction(contextManager);
         connectionContext = new ConnectionContext(cachedConnections::keySet);
         connectionContext.setCurrentDatabase(databaseName);
         this.contextManager = contextManager;
@@ -113,20 +109,20 @@ public final class DriverDatabaseConnectionManager extends OnlineDatabaseConnect
         if (rule.getStrategyRules().isEmpty()) {
             return Collections.emptyMap();
         }
-        MetaDataBasedPersistService persistService = contextManager.getMetaDataContexts().getPersistService();
+        MetaDataPersistService persistService = contextManager.getMetaDataContexts().getPersistService();
         String actualDatabaseName = contextManager.getMetaDataContexts().getMetaData().getDatabase(databaseName).getName();
         Map<String, DataSourcePoolProperties> propsMap = persistService.getDataSourceUnitService().load(actualDatabaseName);
         Preconditions.checkState(!propsMap.isEmpty(), "Can not get data source properties from meta data.");
         DataSourcePoolProperties propsSample = propsMap.values().iterator().next();
         Collection<ShardingSphereUser> users = contextManager.getMetaDataContexts().getMetaData()
                 .getGlobalRuleMetaData().getSingleRule(AuthorityRule.class).getConfiguration().getUsers();
-        Collection<InstanceMetaData> instances = contextManager.getInstanceContext().getAllClusterInstances(InstanceType.PROXY, rule.getLabels()).values();
+        Collection<InstanceMetaData> instances = contextManager.getComputeNodeInstanceContext().getAllClusterInstances(InstanceType.PROXY, rule.getLabels()).values();
         return DataSourcePoolCreator.create(createDataSourcePoolPropertiesMap(instances, users, propsSample, actualDatabaseName), true);
     }
     
     private Map<String, DataSourcePoolProperties> createDataSourcePoolPropertiesMap(final Collection<InstanceMetaData> instances, final Collection<ShardingSphereUser> users,
                                                                                     final DataSourcePoolProperties propsSample, final String schema) {
-        Map<String, DataSourcePoolProperties> result = new LinkedHashMap<>();
+        Map<String, DataSourcePoolProperties> result = new LinkedHashMap<>(instances.size(), 1F);
         for (InstanceMetaData each : instances) {
             result.put(each.getId(), createDataSourcePoolProperties((ProxyInstanceMetaData) each, users, propsSample, schema));
         }
@@ -150,9 +146,14 @@ public final class DriverDatabaseConnectionManager extends OnlineDatabaseConnect
         return String.format("%s//%s:%s/%s%s", jdbcUrlPrefix, instanceMetaData.getIp(), instanceMetaData.getPort(), schema, jdbcUrlSuffix);
     }
     
-    private ConnectionTransaction createConnectionTransaction(final ContextManager contextManager) {
+    /**
+     * Get connection transaction.
+     *
+     * @return connection transaction
+     */
+    public ConnectionTransaction getConnectionTransaction() {
         TransactionRule rule = contextManager.getMetaDataContexts().getMetaData().getGlobalRuleMetaData().getSingleRule(TransactionRule.class);
-        return new ConnectionTransaction(rule);
+        return new ConnectionTransaction(rule, connectionContext.getTransactionContext());
     }
     
     /**
@@ -172,8 +173,9 @@ public final class DriverDatabaseConnectionManager extends OnlineDatabaseConnect
      * @throws SQLException SQL exception
      */
     public void commit() throws SQLException {
+        ConnectionTransaction connectionTransaction = getConnectionTransaction();
         try {
-            if (connectionTransaction.isLocalTransaction() && connectionTransaction.isRollbackOnly()) {
+            if (connectionTransaction.isLocalTransaction() && connectionContext.getTransactionContext().isExceptionOccur()) {
                 forceExecuteTemplate.execute(cachedConnections.values(), Connection::rollback);
             } else if (connectionTransaction.isLocalTransaction()) {
                 forceExecuteTemplate.execute(cachedConnections.values(), Connection::commit);
@@ -193,6 +195,7 @@ public final class DriverDatabaseConnectionManager extends OnlineDatabaseConnect
      * @throws SQLException SQL exception
      */
     public void rollback() throws SQLException {
+        ConnectionTransaction connectionTransaction = getConnectionTransaction();
         try {
             if (connectionTransaction.isLocalTransaction()) {
                 forceExecuteTemplate.execute(cachedConnections.values(), Connection::rollback);
@@ -415,7 +418,7 @@ public final class DriverDatabaseConnectionManager extends OnlineDatabaseConnect
     private Connection createConnection(final String databaseName, final String dataSourceName, final DataSource dataSource,
                                         final TransactionConnectionContext transactionConnectionContext) throws SQLException {
         Optional<Connection> connectionInTransaction =
-                isRawJdbcDataSource(databaseName, dataSourceName) ? connectionTransaction.getConnection(databaseName, dataSourceName, transactionConnectionContext) : Optional.empty();
+                isRawJdbcDataSource(databaseName, dataSourceName) ? getConnectionTransaction().getConnection(databaseName, dataSourceName, transactionConnectionContext) : Optional.empty();
         return connectionInTransaction.isPresent() ? connectionInTransaction.get() : dataSource.getConnection();
     }
     

@@ -28,20 +28,21 @@ import org.apache.curator.framework.recipes.cache.CuratorCacheListener;
 import org.apache.curator.framework.recipes.cache.TreeCacheEvent;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.utils.CloseableUtils;
-import org.apache.shardingsphere.infra.instance.InstanceContext;
-import org.apache.shardingsphere.infra.instance.InstanceContextAware;
+import org.apache.shardingsphere.infra.instance.ComputeNodeInstanceContext;
+import org.apache.shardingsphere.infra.instance.ComputeNodeInstanceContextAware;
+import org.apache.shardingsphere.mode.event.DataChangedEvent;
+import org.apache.shardingsphere.mode.event.DataChangedEvent.Type;
 import org.apache.shardingsphere.mode.repository.cluster.ClusterPersistRepository;
 import org.apache.shardingsphere.mode.repository.cluster.ClusterPersistRepositoryConfiguration;
 import org.apache.shardingsphere.mode.repository.cluster.exception.ClusterPersistRepositoryException;
-import org.apache.shardingsphere.mode.event.DataChangedEvent;
-import org.apache.shardingsphere.mode.event.DataChangedEvent.Type;
 import org.apache.shardingsphere.mode.repository.cluster.listener.DataChangedEventListener;
 import org.apache.shardingsphere.mode.repository.cluster.lock.holder.DistributedLockHolder;
 import org.apache.shardingsphere.mode.repository.cluster.zookeeper.handler.ZookeeperExceptionHandler;
-import org.apache.shardingsphere.mode.repository.cluster.zookeeper.listener.SessionConnectionListener;
+import org.apache.shardingsphere.mode.repository.cluster.zookeeper.listener.SessionConnectionReconnectListener;
 import org.apache.shardingsphere.mode.repository.cluster.zookeeper.props.ZookeeperProperties;
 import org.apache.shardingsphere.mode.repository.cluster.zookeeper.props.ZookeeperPropertyKey;
 import org.apache.zookeeper.CreateMode;
+import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.KeeperException.NodeExistsException;
 import org.apache.zookeeper.KeeperException.OperationTimeoutException;
 import org.apache.zookeeper.ZooDefs;
@@ -58,7 +59,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Registry repository of ZooKeeper.
  */
-public final class ZookeeperRepository implements ClusterPersistRepository, InstanceContextAware {
+public final class ZookeeperRepository implements ClusterPersistRepository, ComputeNodeInstanceContextAware {
     
     private final Map<String, CuratorCache> caches = new ConcurrentHashMap<>();
     
@@ -168,14 +169,15 @@ public final class ZookeeperRepository implements ClusterPersistRepository, Inst
     }
     
     @Override
-    public String getDirectly(final String key) {
+    public String query(final String key) {
         try {
             return new String(client.getData().forPath(key), StandardCharsets.UTF_8);
+        } catch (final KeeperException.NoNodeException ex) {
+            return null;
             // CHECKSTYLE:OFF
         } catch (final Exception ex) {
             // CHECKSTYLE:ON
-            ZookeeperExceptionHandler.handleException(ex);
-            return null;
+            throw new ClusterPersistRepositoryException(ex);
         }
     }
     
@@ -206,16 +208,17 @@ public final class ZookeeperRepository implements ClusterPersistRepository, Inst
     }
     
     @Override
-    public void persistExclusiveEphemeral(final String key, final String value) {
+    public boolean persistExclusiveEphemeral(final String key, final String value) {
         try {
             client.create().creatingParentsIfNeeded().withMode(CreateMode.EPHEMERAL).forPath(key, value.getBytes(StandardCharsets.UTF_8));
         } catch (final NodeExistsException ex) {
-            throw new ClusterPersistRepositoryException(ex);
+            return false;
             // CHECKSTYLE:OFF
         } catch (final Exception ex) {
             ZookeeperExceptionHandler.handleException(ex);
             // CHECKSTYLE:ON
         }
+        return true;
     }
     
     @Override
@@ -284,8 +287,8 @@ public final class ZookeeperRepository implements ClusterPersistRepository, Inst
     }
     
     @Override
-    public void setInstanceContext(final InstanceContext instanceContext) {
-        client.getConnectionStateListenable().addListener(new SessionConnectionListener(instanceContext, this));
+    public void setComputeNodeInstanceContext(final ComputeNodeInstanceContext computeNodeInstanceContext) {
+        client.getConnectionStateListenable().addListener(new SessionConnectionReconnectListener(computeNodeInstanceContext, this));
     }
     
     @Override

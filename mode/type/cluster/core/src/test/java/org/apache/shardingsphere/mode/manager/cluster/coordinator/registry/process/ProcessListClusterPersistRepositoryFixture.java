@@ -36,7 +36,7 @@ public final class ProcessListClusterPersistRepositoryFixture implements Cluster
     }
     
     @Override
-    public String getDirectly(final String key) {
+    public String query(final String key) {
         return REGISTRY_DATA.get(key);
     }
     
@@ -65,7 +65,8 @@ public final class ProcessListClusterPersistRepositoryFixture implements Cluster
     }
     
     @Override
-    public void persistExclusiveEphemeral(final String key, final String value) {
+    public boolean persistExclusiveEphemeral(final String key, final String value) {
+        return true;
     }
     
     @Override

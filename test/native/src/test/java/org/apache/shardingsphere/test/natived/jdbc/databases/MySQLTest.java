@@ -69,7 +69,7 @@ class MySQLTest {
             jdbcUrlPrefix = "jdbc:mysql://localhost:" + container.getMappedPort(3306) + "/";
             DataSource dataSource = createDataSource();
             testShardingService = new TestShardingService(dataSource);
-            this.initEnvironment();
+            initEnvironment();
             testShardingService.processSuccess();
             testShardingService.cleanEnvironment();
         }
@@ -93,7 +93,7 @@ class MySQLTest {
     
     @SuppressWarnings({"SqlDialectInspection", "SqlNoDataSourceInspection"})
     private DataSource createDataSource() {
-        Awaitility.await().atMost(Duration.ofMinutes(1)).ignoreExceptionsMatching(e -> e instanceof CommunicationsException)
+        Awaitility.await().atMost(Duration.ofMinutes(1L)).ignoreExceptionsMatching(e -> e instanceof CommunicationsException)
                 .until(() -> {
                     openConnection().close();
                     return true;
@@ -102,8 +102,8 @@ class MySQLTest {
             connection.createStatement().executeUpdate("CREATE DATABASE demo_ds_0;");
             connection.createStatement().executeUpdate("CREATE DATABASE demo_ds_1;");
             connection.createStatement().executeUpdate("CREATE DATABASE demo_ds_2;");
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
+        } catch (final SQLException ex) {
+            throw new RuntimeException(ex);
         }
         HikariConfig config = new HikariConfig();
         config.setDriverClassName("org.apache.shardingsphere.driver.ShardingSphereDriver");

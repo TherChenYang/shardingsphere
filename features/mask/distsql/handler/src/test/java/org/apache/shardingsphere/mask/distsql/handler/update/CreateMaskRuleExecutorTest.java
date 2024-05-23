@@ -17,8 +17,8 @@
 
 package org.apache.shardingsphere.mask.distsql.handler.update;
 
-import org.apache.shardingsphere.infra.exception.kernel.metadata.rule.DuplicateRuleException;
 import org.apache.shardingsphere.distsql.segment.AlgorithmSegment;
+import org.apache.shardingsphere.infra.exception.kernel.metadata.rule.DuplicateRuleException;
 import org.apache.shardingsphere.infra.metadata.database.ShardingSphereDatabase;
 import org.apache.shardingsphere.infra.spi.exception.ServiceProviderNotFoundException;
 import org.apache.shardingsphere.mask.api.config.MaskRuleConfiguration;
@@ -32,7 +32,6 @@ import org.junit.jupiter.api.Test;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Properties;
 
@@ -56,7 +55,7 @@ class CreateMaskRuleExecutorTest {
     @Test
     void assertCheckSQLStatementWithDuplicateMaskRule() {
         MaskRule rule = mock(MaskRule.class);
-        when(rule.getConfiguration()).thenReturn(getCurrentRuleConfig());
+        when(rule.getConfiguration()).thenReturn(getCurrentRuleConfiguration());
         executor.setRule(rule);
         assertThrows(DuplicateRuleException.class, () -> executor.checkBeforeUpdate(createDuplicatedSQLStatement(false, "MD5")));
     }
@@ -68,7 +67,7 @@ class CreateMaskRuleExecutorTest {
     
     @Test
     void assertCreateMaskRule() {
-        MaskRuleConfiguration currentRuleConfig = getCurrentRuleConfig();
+        MaskRuleConfiguration currentRuleConfig = getCurrentRuleConfiguration();
         CreateMaskRuleStatement sqlStatement = createSQLStatement(false, "MD5");
         MaskRule rule = mock(MaskRule.class);
         when(rule.getConfiguration()).thenReturn(currentRuleConfig);
@@ -82,7 +81,7 @@ class CreateMaskRuleExecutorTest {
     
     @Test
     void assertCreateMaskRuleWithIfNotExists() {
-        MaskRuleConfiguration currentRuleConfig = getCurrentRuleConfig();
+        MaskRuleConfiguration currentRuleConfig = getCurrentRuleConfiguration();
         MaskRule rule = mock(MaskRule.class);
         CreateMaskRuleStatement sqlStatement = createSQLStatement(true, "MD5");
         when(rule.getConfiguration()).thenReturn(currentRuleConfig);
@@ -116,10 +115,10 @@ class CreateMaskRuleExecutorTest {
         return new CreateMaskRuleStatement(ifNotExists, rules);
     }
     
-    private MaskRuleConfiguration getCurrentRuleConfig() {
+    private MaskRuleConfiguration getCurrentRuleConfiguration() {
         Collection<MaskTableRuleConfiguration> rules = new LinkedList<>();
         rules.add(new MaskTableRuleConfiguration("t_mask", Collections.emptyList()));
         rules.add(new MaskTableRuleConfiguration("t_order", Collections.emptyList()));
-        return new MaskRuleConfiguration(rules, new HashMap<>());
+        return new MaskRuleConfiguration(rules, Collections.emptyMap());
     }
 }

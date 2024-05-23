@@ -54,7 +54,7 @@ public final class ResultSetUtils {
      * @throws SQLFeatureNotSupportedException SQL feature not supported exception
      */
     public static Object convertValue(final Object value, final Class<?> convertType) throws SQLFeatureNotSupportedException {
-        ShardingSpherePreconditions.checkState(null != convertType, () -> new SQLFeatureNotSupportedException("Type can not be null"));
+        ShardingSpherePreconditions.checkNotNull(convertType, () -> new SQLFeatureNotSupportedException("Type can not be null"));
         if (null == value) {
             return convertNullValue(convertType);
         }
@@ -253,14 +253,14 @@ public final class ResultSetUtils {
             return value;
         }
         String stringVal = value.toString();
-        if (stringVal.length() > 0) {
-            int firstChar = Character.toLowerCase(stringVal.charAt(0));
-            return 't' == firstChar || 'y' == firstChar || '1' == firstChar || "-1".equals(stringVal);
+        if (stringVal.isEmpty()) {
+            return false;
         }
-        return false;
+        int firstChar = Character.toLowerCase(stringVal.charAt(0));
+        return 't' == firstChar || 'y' == firstChar || '1' == firstChar || "-1".equals(stringVal);
     }
     
     private static Boolean longToBoolean(final long longVal) {
-        return -1 == longVal || longVal > 0;
+        return -1L == longVal || longVal > 0L;
     }
 }

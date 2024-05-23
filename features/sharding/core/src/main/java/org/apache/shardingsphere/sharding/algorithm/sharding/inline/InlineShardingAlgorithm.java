@@ -17,7 +17,6 @@
 
 package org.apache.shardingsphere.sharding.algorithm.sharding.inline;
 
-import com.google.common.base.Strings;
 import groovy.lang.MissingMethodException;
 import org.apache.shardingsphere.infra.algorithm.core.exception.AlgorithmInitializationException;
 import org.apache.shardingsphere.infra.exception.core.ShardingSpherePreconditions;
@@ -26,12 +25,11 @@ import org.apache.shardingsphere.infra.expr.core.InlineExpressionParserFactory;
 import org.apache.shardingsphere.sharding.api.sharding.standard.PreciseShardingValue;
 import org.apache.shardingsphere.sharding.api.sharding.standard.RangeShardingValue;
 import org.apache.shardingsphere.sharding.api.sharding.standard.StandardShardingAlgorithm;
-import org.apache.shardingsphere.sharding.exception.algorithm.sharding.MismatchedInlineShardingAlgorithmExpressionAndColumnException;
+import org.apache.shardingsphere.sharding.exception.algorithm.MismatchedInlineShardingAlgorithmExpressionAndColumnException;
 import org.apache.shardingsphere.sharding.exception.data.NullShardingValueException;
 
 import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.util.Collections;
 import java.util.Optional;
 import java.util.Properties;
 
@@ -56,7 +54,7 @@ public final class InlineShardingAlgorithm implements StandardShardingAlgorithm<
     
     private String getAlgorithmExpression(final Properties props) {
         String expression = props.getProperty(ALGORITHM_EXPRESSION_KEY);
-        ShardingSpherePreconditions.checkState(!Strings.isNullOrEmpty(expression), () -> new AlgorithmInitializationException(this, "Inline sharding algorithm expression cannot be null or empty"));
+        ShardingSpherePreconditions.checkNotEmpty(expression, () -> new AlgorithmInitializationException(this, "Inline sharding algorithm expression cannot be null or empty"));
         return InlineExpressionParserFactory.newInstance(expression.trim()).handlePlaceHolder();
     }
     
@@ -69,10 +67,8 @@ public final class InlineShardingAlgorithm implements StandardShardingAlgorithm<
         ShardingSpherePreconditions.checkNotNull(shardingValue.getValue(), NullShardingValueException::new);
         String columnName = shardingValue.getColumnName();
         ShardingSpherePreconditions.checkState(algorithmExpression.contains(columnName), () -> new MismatchedInlineShardingAlgorithmExpressionAndColumnException(algorithmExpression, columnName));
-        Map<String, Comparable<?>> map = new LinkedHashMap<>();
-        map.put(columnName, shardingValue.getValue());
         try {
-            return InlineExpressionParserFactory.newInstance(algorithmExpression).evaluateWithArgs(map);
+            return InlineExpressionParserFactory.newInstance(algorithmExpression).evaluateWithArgs(Collections.singletonMap(columnName, shardingValue.getValue()));
         } catch (final MissingMethodException ignored) {
             throw new MismatchedInlineShardingAlgorithmExpressionAndColumnException(algorithmExpression, columnName);
         }

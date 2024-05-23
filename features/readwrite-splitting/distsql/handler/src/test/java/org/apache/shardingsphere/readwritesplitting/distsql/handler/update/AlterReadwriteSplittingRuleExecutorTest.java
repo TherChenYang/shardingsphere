@@ -17,17 +17,17 @@
 
 package org.apache.shardingsphere.readwritesplitting.distsql.handler.update;
 
-import org.apache.shardingsphere.infra.exception.kernel.metadata.rule.InvalidRuleConfigurationException;
-import org.apache.shardingsphere.infra.exception.kernel.metadata.rule.MissingRequiredRuleException;
-import org.apache.shardingsphere.infra.exception.kernel.metadata.resource.storageunit.MissingRequiredStorageUnitsException;
 import org.apache.shardingsphere.distsql.segment.AlgorithmSegment;
+import org.apache.shardingsphere.infra.exception.kernel.metadata.resource.storageunit.MissingRequiredStorageUnitsException;
+import org.apache.shardingsphere.infra.exception.kernel.metadata.rule.MissingRequiredRuleException;
 import org.apache.shardingsphere.infra.metadata.database.ShardingSphereDatabase;
 import org.apache.shardingsphere.infra.metadata.database.resource.ResourceMetaData;
 import org.apache.shardingsphere.infra.spi.exception.ServiceProviderNotFoundException;
 import org.apache.shardingsphere.readwritesplitting.api.ReadwriteSplittingRuleConfiguration;
-import org.apache.shardingsphere.readwritesplitting.api.rule.ReadwriteSplittingDataSourceRuleConfiguration;
+import org.apache.shardingsphere.readwritesplitting.api.rule.ReadwriteSplittingDataSourceGroupRuleConfiguration;
 import org.apache.shardingsphere.readwritesplitting.distsql.segment.ReadwriteSplittingRuleSegment;
 import org.apache.shardingsphere.readwritesplitting.distsql.statement.AlterReadwriteSplittingRuleStatement;
+import org.apache.shardingsphere.readwritesplitting.exception.actual.DuplicateReadwriteSplittingActualDataSourceException;
 import org.apache.shardingsphere.readwritesplitting.rule.ReadwriteSplittingRule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -99,7 +99,7 @@ class AlterReadwriteSplittingRuleExecutorTest {
         ReadwriteSplittingRule rule = mock(ReadwriteSplittingRule.class);
         when(rule.getConfiguration()).thenReturn(createCurrentRuleConfigurationWithMultipleRules());
         executor.setRule(rule);
-        assertThrows(InvalidRuleConfigurationException.class,
+        assertThrows(DuplicateReadwriteSplittingActualDataSourceException.class,
                 () -> executor.checkBeforeUpdate(createSQLStatementWithDuplicateWriteResourceNames("readwrite_ds_0", "readwrite_ds_1", "TEST")));
     }
     
@@ -110,7 +110,7 @@ class AlterReadwriteSplittingRuleExecutorTest {
         ReadwriteSplittingRule rule = mock(ReadwriteSplittingRule.class);
         when(rule.getConfiguration()).thenReturn(createCurrentRuleConfigurationWithMultipleRules());
         executor.setRule(rule);
-        assertThrows(InvalidRuleConfigurationException.class,
+        assertThrows(DuplicateReadwriteSplittingActualDataSourceException.class,
                 () -> executor.checkBeforeUpdate(
                         createSQLStatement("readwrite_ds_0", "ds_write_1", Arrays.asList("read_ds_0", "read_ds_1"), "TEST")));
     }
@@ -122,7 +122,7 @@ class AlterReadwriteSplittingRuleExecutorTest {
         ReadwriteSplittingRule rule = mock(ReadwriteSplittingRule.class);
         when(rule.getConfiguration()).thenReturn(createCurrentRuleConfigurationWithMultipleRules());
         executor.setRule(rule);
-        assertThrows(InvalidRuleConfigurationException.class,
+        assertThrows(DuplicateReadwriteSplittingActualDataSourceException.class,
                 () -> executor.checkBeforeUpdate(createSQLStatementWithDuplicateReadResourceNames("readwrite_ds_0", "readwrite_ds_1", "TEST")));
     }
     
@@ -133,7 +133,7 @@ class AlterReadwriteSplittingRuleExecutorTest {
         ReadwriteSplittingRule rule = mock(ReadwriteSplittingRule.class);
         when(rule.getConfiguration()).thenReturn(createCurrentRuleConfigurationWithMultipleRules());
         executor.setRule(rule);
-        assertThrows(InvalidRuleConfigurationException.class,
+        assertThrows(DuplicateReadwriteSplittingActualDataSourceException.class,
                 () -> executor.checkBeforeUpdate(createSQLStatement("readwrite_ds_1", "write_ds_1", Arrays.asList("read_ds_0_0", "read_ds_0_1"), "TEST")));
     }
     
@@ -165,16 +165,16 @@ class AlterReadwriteSplittingRuleExecutorTest {
     }
     
     private ReadwriteSplittingRuleConfiguration createCurrentRuleConfiguration() {
-        ReadwriteSplittingDataSourceRuleConfiguration dataSourceRuleConfig =
-                new ReadwriteSplittingDataSourceRuleConfiguration("readwrite_ds", "ds_write", Arrays.asList("read_ds_0", "read_ds_1"), "TEST");
-        return new ReadwriteSplittingRuleConfiguration(new LinkedList<>(Collections.singleton(dataSourceRuleConfig)), Collections.emptyMap());
+        ReadwriteSplittingDataSourceGroupRuleConfiguration dataSourceGroupConfig =
+                new ReadwriteSplittingDataSourceGroupRuleConfiguration("readwrite_ds", "ds_write", Arrays.asList("read_ds_0", "read_ds_1"), "TEST");
+        return new ReadwriteSplittingRuleConfiguration(new LinkedList<>(Collections.singleton(dataSourceGroupConfig)), Collections.emptyMap());
     }
     
     private ReadwriteSplittingRuleConfiguration createCurrentRuleConfigurationWithMultipleRules() {
-        ReadwriteSplittingDataSourceRuleConfiguration dataSourceRuleConfig0 =
-                new ReadwriteSplittingDataSourceRuleConfiguration("readwrite_ds_0", "ds_write_0", Arrays.asList("read_ds_0_0", "read_ds_0_1"), "TEST");
-        ReadwriteSplittingDataSourceRuleConfiguration dataSourceRuleConfig1 =
-                new ReadwriteSplittingDataSourceRuleConfiguration("readwrite_ds_1", "ds_write_1", Arrays.asList("read_ds_1_0", "read_ds_1_1"), "TEST");
-        return new ReadwriteSplittingRuleConfiguration(new LinkedList<>(Arrays.asList(dataSourceRuleConfig0, dataSourceRuleConfig1)), Collections.emptyMap());
+        ReadwriteSplittingDataSourceGroupRuleConfiguration dataSourceGroupConfig0 =
+                new ReadwriteSplittingDataSourceGroupRuleConfiguration("readwrite_ds_0", "ds_write_0", Arrays.asList("read_ds_0_0", "read_ds_0_1"), "TEST");
+        ReadwriteSplittingDataSourceGroupRuleConfiguration dataSourceGroupConfig1 =
+                new ReadwriteSplittingDataSourceGroupRuleConfiguration("readwrite_ds_1", "ds_write_1", Arrays.asList("read_ds_1_0", "read_ds_1_1"), "TEST");
+        return new ReadwriteSplittingRuleConfiguration(new LinkedList<>(Arrays.asList(dataSourceGroupConfig0, dataSourceGroupConfig1)), Collections.emptyMap());
     }
 }

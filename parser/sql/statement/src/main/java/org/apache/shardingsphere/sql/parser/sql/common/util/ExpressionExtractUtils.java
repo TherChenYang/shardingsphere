@@ -41,7 +41,7 @@ import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.item.Expressi
 import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.item.IntervalExpressionProjection;
 import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.predicate.AndPredicate;
 import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.predicate.WhereSegment;
-import org.apache.shardingsphere.sql.parser.sql.dialect.segment.mysql.match.MatchAgainstExpression;
+import org.apache.shardingsphere.sql.parser.sql.common.segment.generic.match.MatchAgainstExpression;
 import org.apache.shardingsphere.sql.parser.sql.dialect.segment.oracle.datetime.DatetimeExpression;
 import org.apache.shardingsphere.sql.parser.sql.dialect.segment.oracle.join.OuterJoinExpression;
 import org.apache.shardingsphere.sql.parser.sql.dialect.segment.oracle.multiset.MultisetExpression;
@@ -118,24 +118,24 @@ public final class ExpressionExtractUtils {
         return result;
     }
     
-    private static void extractParameterMarkerExpressions(final List<ParameterMarkerExpressionSegment> result, final Collection<ExpressionSegment> expressions) {
+    private static void extractParameterMarkerExpressions(final List<ParameterMarkerExpressionSegment> segments, final Collection<ExpressionSegment> expressions) {
         for (ExpressionSegment each : expressions) {
             if (each instanceof ParameterMarkerExpressionSegment) {
-                result.add((ParameterMarkerExpressionSegment) each);
+                segments.add((ParameterMarkerExpressionSegment) each);
             }
             // TODO support more expression type if necessary
             if (each instanceof BinaryOperationExpression) {
-                extractParameterMarkerExpressions(result, Collections.singleton(((BinaryOperationExpression) each).getLeft()));
-                extractParameterMarkerExpressions(result, Collections.singleton(((BinaryOperationExpression) each).getRight()));
+                extractParameterMarkerExpressions(segments, Collections.singleton(((BinaryOperationExpression) each).getLeft()));
+                extractParameterMarkerExpressions(segments, Collections.singleton(((BinaryOperationExpression) each).getRight()));
             }
             if (each instanceof FunctionSegment) {
-                extractParameterMarkerExpressions(result, ((FunctionSegment) each).getParameters());
+                extractParameterMarkerExpressions(segments, ((FunctionSegment) each).getParameters());
             }
             if (each instanceof TypeCastExpression) {
-                extractParameterMarkerExpressions(result, Collections.singleton(((TypeCastExpression) each).getExpression()));
+                extractParameterMarkerExpressions(segments, Collections.singleton(((TypeCastExpression) each).getExpression()));
             }
             if (each instanceof InExpression) {
-                extractParameterMarkerExpressions(result, ((InExpression) each).getExpressionList());
+                extractParameterMarkerExpressions(segments, ((InExpression) each).getExpressionList());
             }
         }
     }
@@ -220,7 +220,7 @@ public final class ExpressionExtractUtils {
             }
         }
         if (expression instanceof MatchAgainstExpression) {
-            result.add(((MatchAgainstExpression) expression).getColumnName());
+            result.addAll(((MatchAgainstExpression) expression).getColumns());
             result.addAll(extractColumns(((MatchAgainstExpression) expression).getExpr(), containsSubQuery));
         }
         if (expression instanceof MultisetExpression) {

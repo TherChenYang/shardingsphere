@@ -63,7 +63,7 @@ class OpenGaussTest {
             jdbcUrlPrefix = "jdbc:opengauss://localhost:" + openGaussContainer.getMappedPort(5432) + "/";
             DataSource dataSource = createDataSource();
             testShardingService = new TestShardingService(dataSource);
-            this.initEnvironment();
+            initEnvironment();
             testShardingService.processSuccess();
             testShardingService.cleanEnvironment();
         }
@@ -87,7 +87,7 @@ class OpenGaussTest {
     
     @SuppressWarnings({"SqlDialectInspection", "SqlNoDataSourceInspection"})
     private DataSource createDataSource() {
-        Awaitility.await().atMost(Duration.ofMinutes(1)).ignoreExceptions().until(() -> {
+        Awaitility.await().atMost(Duration.ofMinutes(1L)).ignoreExceptions().until(() -> {
             openConnection().close();
             return true;
         });
@@ -95,8 +95,8 @@ class OpenGaussTest {
             connection.createStatement().executeUpdate("CREATE DATABASE demo_ds_0;");
             connection.createStatement().executeUpdate("CREATE DATABASE demo_ds_1;");
             connection.createStatement().executeUpdate("CREATE DATABASE demo_ds_2;");
-        } catch (SQLException e) {
-            throw new RuntimeException(e);
+        } catch (final SQLException ex) {
+            throw new RuntimeException(ex);
         }
         HikariConfig config = new HikariConfig();
         config.setDriverClassName("org.apache.shardingsphere.driver.ShardingSphereDriver");

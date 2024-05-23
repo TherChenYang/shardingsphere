@@ -31,9 +31,9 @@ import org.apache.shardingsphere.mode.event.datasource.nodes.UnregisterStorageNo
 import org.apache.shardingsphere.mode.event.datasource.unit.AlterStorageUnitEvent;
 import org.apache.shardingsphere.mode.event.datasource.unit.RegisterStorageUnitEvent;
 import org.apache.shardingsphere.mode.event.datasource.unit.UnregisterStorageUnitEvent;
-import org.apache.shardingsphere.mode.event.schema.table.AlterTableEvent;
+import org.apache.shardingsphere.mode.event.schema.table.CreateOrAlterTableEvent;
 import org.apache.shardingsphere.mode.event.schema.table.DropTableEvent;
-import org.apache.shardingsphere.mode.event.schema.view.AlterViewEvent;
+import org.apache.shardingsphere.mode.event.schema.view.CreateOrAlterViewEvent;
 import org.apache.shardingsphere.mode.event.schema.view.DropViewEvent;
 import org.apache.shardingsphere.mode.manager.cluster.coordinator.registry.GovernanceWatcher;
 import org.apache.shardingsphere.mode.manager.cluster.coordinator.registry.metadata.event.DatabaseAddedEvent;
@@ -46,6 +46,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Meta data changed watcher.
@@ -55,9 +56,10 @@ public final class MetaDataChangedWatcher implements GovernanceWatcher<Governanc
     private final RuleConfigurationEventBuilder ruleConfigurationEventBuilder = new RuleConfigurationEventBuilder();
     
     @Override
-    public Collection<String> getWatchingKeys(final String databaseName) {
-        return null == databaseName ? Collections.singleton(DatabaseMetaDataNode.getMetaDataNode())
-                : Collections.singleton(DatabaseMetaDataNode.getDatabaseNamePath(databaseName));
+    public Collection<String> getWatchingKeys(final Collection<String> databaseNames) {
+        return databaseNames.isEmpty()
+                ? Collections.singleton(DatabaseMetaDataNode.getMetaDataNode())
+                : databaseNames.stream().map(DatabaseMetaDataNode::getDatabaseNamePath).collect(Collectors.toList());
     }
     
     @Override
@@ -124,7 +126,7 @@ public final class MetaDataChangedWatcher implements GovernanceWatcher<Governanc
         if ((Type.ADDED == event.getType() || Type.UPDATED == event.getType()) && TableMetaDataNode.isTableActiveVersionNode(event.getKey())) {
             Optional<String> tableName = TableMetaDataNode.getTableNameByActiveVersionNode(event.getKey());
             Preconditions.checkState(tableName.isPresent(), "Not found table name.");
-            return Optional.of(new AlterTableEvent(databaseName, schemaName, tableName.get(), event.getKey(), event.getValue()));
+            return Optional.of(new CreateOrAlterTableEvent(databaseName, schemaName, tableName.get(), event.getKey(), event.getValue()));
         }
         return Optional.empty();
     }
@@ -138,7 +140,7 @@ public final class MetaDataChangedWatcher implements GovernanceWatcher<Governanc
         if ((Type.ADDED == event.getType() || Type.UPDATED == event.getType()) && ViewMetaDataNode.isViewActiveVersionNode(event.getKey())) {
             Optional<String> viewName = ViewMetaDataNode.getViewNameByActiveVersionNode(event.getKey());
             Preconditions.checkState(viewName.isPresent(), "Not found view name.");
-            return Optional.of(new AlterViewEvent(databaseName, schemaName, viewName.get(), event.getKey(), event.getValue()));
+            return Optional.of(new CreateOrAlterViewEvent(databaseName, schemaName, viewName.get(), event.getKey(), event.getValue()));
         }
         return Optional.empty();
     }

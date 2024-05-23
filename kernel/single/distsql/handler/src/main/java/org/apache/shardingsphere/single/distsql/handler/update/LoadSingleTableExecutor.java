@@ -18,6 +18,7 @@
 package org.apache.shardingsphere.single.distsql.handler.update;
 
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.shardingsphere.distsql.handler.engine.update.rdl.rule.spi.database.DatabaseRuleCreateExecutor;
 import org.apache.shardingsphere.infra.database.DatabaseTypeEngine;
 import org.apache.shardingsphere.infra.database.core.metadata.database.DialectDatabaseMetaData;
@@ -26,6 +27,7 @@ import org.apache.shardingsphere.infra.exception.kernel.metadata.datanode.Invali
 import org.apache.shardingsphere.infra.exception.kernel.metadata.TableNotFoundException;
 import org.apache.shardingsphere.infra.exception.core.ShardingSpherePreconditions;
 import org.apache.shardingsphere.infra.exception.dialect.exception.syntax.table.TableExistsException;
+import org.apache.shardingsphere.infra.exception.kernel.metadata.resource.storageunit.EmptyStorageUnitException;
 import org.apache.shardingsphere.infra.exception.kernel.metadata.resource.storageunit.MissingRequiredStorageUnitsException;
 import org.apache.shardingsphere.infra.metadata.database.ShardingSphereDatabase;
 import org.apache.shardingsphere.infra.metadata.database.resource.ResourceMetaData;
@@ -49,6 +51,7 @@ import java.util.stream.Collectors;
 /**
  * Load single table statement executor.
  */
+@Slf4j
 @Setter
 public final class LoadSingleTableExecutor implements DatabaseRuleCreateExecutor<LoadSingleTableStatement, SingleRule, SingleRuleConfiguration> {
     
@@ -58,9 +61,9 @@ public final class LoadSingleTableExecutor implements DatabaseRuleCreateExecutor
     
     @Override
     public void checkBeforeUpdate(final LoadSingleTableStatement sqlStatement) {
+        checkStorageUnits(sqlStatement);
         String defaultSchemaName = new DatabaseTypeRegistry(database.getProtocolType()).getDefaultSchemaName(database.getName());
         checkDuplicatedTables(sqlStatement, defaultSchemaName);
-        checkStorageUnits(sqlStatement);
         checkActualTableExist(sqlStatement, defaultSchemaName);
     }
     
@@ -92,6 +95,7 @@ public final class LoadSingleTableExecutor implements DatabaseRuleCreateExecutor
     }
     
     private void checkStorageUnits(final LoadSingleTableStatement sqlStatement) {
+        ShardingSpherePreconditions.checkNotEmpty(database.getResourceMetaData().getStorageUnits(), () -> new EmptyStorageUnitException(database.getName()));
         Collection<String> requiredDataSources = getRequiredDataSources(sqlStatement);
         if (requiredDataSources.isEmpty()) {
             return;
@@ -100,7 +104,7 @@ public final class LoadSingleTableExecutor implements DatabaseRuleCreateExecutor
         Collection<String> logicDataSources = database.getRuleMetaData().getAttributes(DataSourceMapperRuleAttribute.class).stream()
                 .flatMap(each -> each.getDataSourceMapper().keySet().stream()).collect(Collectors.toSet());
         notExistedDataSources.removeIf(logicDataSources::contains);
-        ShardingSpherePreconditions.checkState(notExistedDataSources.isEmpty(), () -> new MissingRequiredStorageUnitsException(database.getName(), notExistedDataSources));
+        ShardingSpherePreconditions.checkMustEmpty(notExistedDataSources, () -> new MissingRequiredStorageUnitsException(database.getName(), notExistedDataSources));
     }
     
     private void checkActualTableExist(final LoadSingleTableStatement sqlStatement, final String defaultSchemaName) {
@@ -127,7 +131,7 @@ public final class LoadSingleTableExecutor implements DatabaseRuleCreateExecutor
     }
     
     private Map<String, Map<String, Collection<String>>> getActualTableNodes(final Collection<String> requiredDataSources, final Map<String, DataSource> aggregateDataSourceMap) {
-        Map<String, Map<String, Collection<String>>> result = new LinkedHashMap<>();
+        Map<String, Map<String, Collection<String>>> result = new LinkedHashMap<>(requiredDataSources.size(), 1F);
         for (String each : requiredDataSources) {
             DataSource dataSource = aggregateDataSourceMap.get(each);
             Map<String, Collection<String>> schemaTableNames = SingleTableDataNodeLoader.loadSchemaTableNames(database.getName(), DatabaseTypeEngine.getStorageType(dataSource), dataSource, each);

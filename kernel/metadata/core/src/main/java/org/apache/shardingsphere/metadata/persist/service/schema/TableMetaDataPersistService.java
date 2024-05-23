@@ -25,6 +25,7 @@ import org.apache.shardingsphere.infra.util.yaml.YamlEngine;
 import org.apache.shardingsphere.infra.yaml.schema.pojo.YamlShardingSphereTable;
 import org.apache.shardingsphere.infra.yaml.schema.swapper.YamlTableSwapper;
 import org.apache.shardingsphere.metadata.persist.node.metadata.TableMetaDataNode;
+import org.apache.shardingsphere.metadata.persist.service.version.MetaDataVersionPersistService;
 import org.apache.shardingsphere.mode.spi.PersistRepository;
 
 import java.util.Collection;
@@ -45,23 +46,11 @@ public final class TableMetaDataPersistService implements SchemaMetaDataPersistS
     
     private final PersistRepository repository;
     
-    @Override
-    public void persist(final String databaseName, final String schemaName, final Map<String, ShardingSphereTable> tables) {
-        for (Entry<String, ShardingSphereTable> entry : tables.entrySet()) {
-            String tableName = entry.getKey().toLowerCase();
-            List<String> versions = repository.getChildrenKeys(TableMetaDataNode.getTableVersionsNode(databaseName, schemaName, tableName));
-            repository.persist(TableMetaDataNode.getTableVersionNode(databaseName, schemaName, tableName, versions.isEmpty()
-                    ? DEFAULT_VERSION
-                    : String.valueOf(Integer.parseInt(versions.get(0)) + 1)), YamlEngine.marshal(new YamlTableSwapper().swapToYamlConfiguration(entry.getValue())));
-            if (Strings.isNullOrEmpty(repository.getDirectly(TableMetaDataNode.getTableActiveVersionNode(databaseName, schemaName, tableName)))) {
-                repository.persist(TableMetaDataNode.getTableActiveVersionNode(databaseName, schemaName, tableName), DEFAULT_VERSION);
-            }
-        }
-    }
+    private final MetaDataVersionPersistService metaDataVersionPersistService;
     
     @Override
-    public Collection<MetaDataVersion> persistSchemaMetaData(final String databaseName, final String schemaName, final Map<String, ShardingSphereTable> tables) {
-        Collection<MetaDataVersion> result = new LinkedList<>();
+    public void persist(final String databaseName, final String schemaName, final Map<String, ShardingSphereTable> tables) {
+        Collection<MetaDataVersion> metaDataVersions = new LinkedList<>();
         for (Entry<String, ShardingSphereTable> entry : tables.entrySet()) {
             String tableName = entry.getKey().toLowerCase();
             List<String> versions = repository.getChildrenKeys(TableMetaDataNode.getTableVersionsNode(databaseName, schemaName, tableName));
@@ -71,13 +60,13 @@ public final class TableMetaDataPersistService implements SchemaMetaDataPersistS
             if (Strings.isNullOrEmpty(getActiveVersion(databaseName, schemaName, tableName))) {
                 repository.persist(TableMetaDataNode.getTableActiveVersionNode(databaseName, schemaName, tableName), DEFAULT_VERSION);
             }
-            result.add(new MetaDataVersion(TableMetaDataNode.getTableNode(databaseName, schemaName, tableName), getActiveVersion(databaseName, schemaName, tableName), nextActiveVersion));
+            metaDataVersions.add(new MetaDataVersion(TableMetaDataNode.getTableNode(databaseName, schemaName, tableName), getActiveVersion(databaseName, schemaName, tableName), nextActiveVersion));
         }
-        return result;
+        metaDataVersionPersistService.switchActiveVersion(metaDataVersions);
     }
     
     private String getActiveVersion(final String databaseName, final String schemaName, final String tableName) {
-        return repository.getDirectly(TableMetaDataNode.getTableActiveVersionNode(databaseName, schemaName, tableName));
+        return repository.query(TableMetaDataNode.getTableActiveVersionNode(databaseName, schemaName, tableName));
     }
     
     @Override
@@ -94,8 +83,8 @@ public final class TableMetaDataPersistService implements SchemaMetaDataPersistS
     private Map<String, ShardingSphereTable> getTableMetaDataByTableNames(final String databaseName, final String schemaName, final Collection<String> tableNames) {
         Map<String, ShardingSphereTable> result = new LinkedHashMap<>(tableNames.size(), 1F);
         tableNames.forEach(each -> {
-            String table = repository.getDirectly(TableMetaDataNode.getTableVersionNode(databaseName, schemaName, each,
-                    repository.getDirectly(TableMetaDataNode.getTableActiveVersionNode(databaseName, schemaName, each))));
+            String table = repository.query(TableMetaDataNode.getTableVersionNode(databaseName, schemaName, each,
+                    repository.query(TableMetaDataNode.getTableActiveVersionNode(databaseName, schemaName, each))));
             if (!Strings.isNullOrEmpty(table)) {
                 result.put(each.toLowerCase(), new YamlTableSwapper().swapToObject(YamlEngine.unmarshal(table, YamlShardingSphereTable.class)));
             }

@@ -144,6 +144,8 @@ public final class PipelineContainerComposer implements AutoCloseable {
         try (Connection connection = DriverManager.getConnection(jdbcUrl, ProxyContainerConstants.USERNAME, ProxyContainerConstants.PASSWORD)) {
             cleanUpPipelineJobs(connection, jobType);
             cleanUpProxyDatabase(connection);
+            // Compatible with "drop database if exists sharding_db;" failed for now
+            cleanUpProxyDatabase(connection);
             createProxyDatabase(connection);
         }
         cleanUpDataSource();
@@ -243,7 +245,7 @@ public final class PipelineContainerComposer implements AutoCloseable {
                 .replace("${url}", getActualJdbcUrlTemplate(storageUnitName, true));
         proxyExecuteWithLog(registerStorageUnitTemplate, 0);
         int timeout = databaseType instanceof OpenGaussDatabaseType ? 60 : 10;
-        Awaitility.await().ignoreExceptions().atMost(timeout, TimeUnit.SECONDS).pollInterval(1, TimeUnit.SECONDS).until(() -> showStorageUnitsName().contains(storageUnitName));
+        Awaitility.await().ignoreExceptions().atMost(timeout, TimeUnit.SECONDS).pollInterval(3L, TimeUnit.SECONDS).until(() -> showStorageUnitsName().contains(storageUnitName));
     }
     
     /**
@@ -263,7 +265,9 @@ public final class PipelineContainerComposer implements AutoCloseable {
      * @return storage units names
      */
     public List<String> showStorageUnitsName() {
-        return queryForListWithLog(proxyDataSource, "SHOW STORAGE UNITS").stream().map(each -> String.valueOf(each.get("name"))).collect(Collectors.toList());
+        List<String> result = queryForListWithLog(proxyDataSource, "SHOW STORAGE UNITS").stream().map(each -> String.valueOf(each.get("name"))).collect(Collectors.toList());
+        log.info("Show storage units name: {}", result);
+        return result;
     }
     
     /**
@@ -469,11 +473,11 @@ public final class PipelineContainerComposer implements AutoCloseable {
      */
     public List<Map<String, Object>> transformResultSetToList(final ResultSet resultSet) throws SQLException {
         ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
-        int columns = resultSetMetaData.getColumnCount();
+        int columnCount = resultSetMetaData.getColumnCount();
         List<Map<String, Object>> result = new ArrayList<>();
         while (resultSet.next()) {
-            Map<String, Object> row = new HashMap<>();
-            for (int i = 1; i <= columns; i++) {
+            Map<String, Object> row = new HashMap<>(columnCount, 1F);
+            for (int i = 1; i <= columnCount; i++) {
                 row.put(resultSetMetaData.getColumnLabel(i).toLowerCase(), resultSet.getObject(i));
             }
             result.add(row);
@@ -502,7 +506,7 @@ public final class PipelineContainerComposer implements AutoCloseable {
         for (int i = 0; i < 10; i++) {
             List<Map<String, Object>> listJobStatus = queryForListWithLog(distSQL);
             log.info("show status result: {}", listJobStatus);
-            Set<String> actualStatus = new HashSet<>();
+            Set<String> actualStatus = new HashSet<>(listJobStatus.size(), 1F);
             Collection<Integer> incrementalIdleSecondsList = new LinkedList<>();
             for (Map<String, Object> each : listJobStatus) {
                 assertTrue(Strings.isNullOrEmpty((String) each.get("error_message")), "error_message: `" + each.get("error_message") + "`");
@@ -531,9 +535,9 @@ public final class PipelineContainerComposer implements AutoCloseable {
     public void assertOrderRecordExist(final DataSource dataSource, final String tableName, final Object orderId) {
         String sql;
         if (orderId instanceof String) {
-            sql = String.format("SELECT 1 FROM %s WHERE order_id = '%s'", tableName, orderId);
+            sql = String.format("SELECT 1 FROM %s WHERE order_id = '%s' AND user_id>0", tableName, orderId);
         } else {
-            sql = String.format("SELECT 1 FROM %s WHERE order_id = %s", tableName, orderId);
+            sql = String.format("SELECT 1 FROM %s WHERE order_id = %s AND user_id>0", tableName, orderId);
         }
         assertOrderRecordExist(dataSource, sql);
     }

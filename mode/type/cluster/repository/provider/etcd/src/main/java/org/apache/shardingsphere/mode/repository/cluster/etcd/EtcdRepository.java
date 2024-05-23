@@ -79,7 +79,7 @@ public final class EtcdRepository implements ClusterPersistRepository {
     
     @SneakyThrows({InterruptedException.class, ExecutionException.class})
     @Override
-    public String getDirectly(final String key) {
+    public String query(final String key) {
         List<KeyValue> keyValues = client.getKVClient().get(ByteSequence.from(key, StandardCharsets.UTF_8)).get().getKvs();
         return keyValues.isEmpty() ? null : keyValues.iterator().next().getValue().toString(StandardCharsets.UTF_8);
     }
@@ -127,8 +127,9 @@ public final class EtcdRepository implements ClusterPersistRepository {
     }
     
     @Override
-    public void persistExclusiveEphemeral(final String key, final String value) {
+    public boolean persistExclusiveEphemeral(final String key, final String value) {
         persistEphemeral(key, value);
+        return true;
     }
     
     private void buildParentPath(final String key) throws ExecutionException, InterruptedException {

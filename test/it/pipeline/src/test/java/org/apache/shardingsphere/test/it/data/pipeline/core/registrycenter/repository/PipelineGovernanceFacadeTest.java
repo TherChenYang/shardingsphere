@@ -89,7 +89,7 @@ class PipelineGovernanceFacadeTest {
     void assertWatch() throws InterruptedException {
         String key = PipelineNodePath.DATA_PIPELINE_ROOT + "/1";
         getClusterPersistRepository().persist(key, "");
-        boolean awaitResult = COUNT_DOWN_LATCH.await(10, TimeUnit.SECONDS);
+        boolean awaitResult = COUNT_DOWN_LATCH.await(10L, TimeUnit.SECONDS);
         assertTrue(awaitResult);
         DataChangedEvent event = EVENT_ATOMIC_REFERENCE.get();
         assertNotNull(event);
@@ -139,7 +139,7 @@ class PipelineGovernanceFacadeTest {
         assertThat(actualCheckJobIds.size(), is(1));
         assertThat(actualCheckJobIds.iterator().next(), is(checkJobId));
         governanceFacade.getJobFacade().getCheck().deleteCheckJobResult(jobItemContext.getJobId(), checkJobId);
-        assertThat(governanceFacade.getJobFacade().getCheck().listCheckJobIds(jobItemContext.getJobId()).size(), is(0));
+        assertTrue(governanceFacade.getJobFacade().getCheck().listCheckJobIds(jobItemContext.getJobId()).isEmpty());
     }
     
     @Test

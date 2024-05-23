@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 @RequiredArgsConstructor
 @Getter
-public final class ProxyDatabaseConnectionManager extends OnlineDatabaseConnectionManager<Connection> {
+public final class ProxyDatabaseConnectionManager implements OnlineDatabaseConnectionManager<Connection> {
     
     private final ConnectionSession connectionSession;
     
@@ -247,7 +247,7 @@ public final class ProxyDatabaseConnectionManager extends OnlineDatabaseConnecti
     public void closeExecutionResources() throws BackendConnectionException {
         synchronized (this) {
             Collection<Exception> result = new LinkedList<>(closeHandlers(false));
-            if (!connectionSession.getTransactionStatus().isInConnectionHeldTransaction()) {
+            if (!connectionSession.getTransactionStatus().isInConnectionHeldTransaction(TransactionUtils.getTransactionType(connectionSession.getConnectionContext().getTransactionContext()))) {
                 result.addAll(closeHandlers(true));
                 result.addAll(closeConnections(false));
             } else if (closed.get()) {

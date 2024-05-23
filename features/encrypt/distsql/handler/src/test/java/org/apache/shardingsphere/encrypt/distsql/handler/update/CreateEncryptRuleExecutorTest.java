@@ -17,8 +17,6 @@
 
 package org.apache.shardingsphere.encrypt.distsql.handler.update;
 
-import org.apache.shardingsphere.infra.exception.kernel.metadata.rule.DuplicateRuleException;
-import org.apache.shardingsphere.infra.exception.kernel.metadata.rule.InvalidRuleConfigurationException;
 import org.apache.shardingsphere.distsql.segment.AlgorithmSegment;
 import org.apache.shardingsphere.encrypt.api.config.EncryptRuleConfiguration;
 import org.apache.shardingsphere.encrypt.api.config.rule.EncryptTableRuleConfiguration;
@@ -28,6 +26,8 @@ import org.apache.shardingsphere.encrypt.distsql.segment.EncryptRuleSegment;
 import org.apache.shardingsphere.encrypt.distsql.statement.CreateEncryptRuleStatement;
 import org.apache.shardingsphere.encrypt.rule.EncryptRule;
 import org.apache.shardingsphere.infra.algorithm.core.exception.AlgorithmInitializationException;
+import org.apache.shardingsphere.infra.exception.kernel.metadata.rule.DuplicateRuleException;
+import org.apache.shardingsphere.infra.exception.kernel.metadata.rule.InvalidRuleConfigurationException;
 import org.apache.shardingsphere.infra.metadata.database.ShardingSphereDatabase;
 import org.apache.shardingsphere.infra.spi.exception.ServiceProviderNotFoundException;
 import org.apache.shardingsphere.test.util.PropertiesBuilder;
@@ -35,14 +35,14 @@ import org.apache.shardingsphere.test.util.PropertiesBuilder.Property;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Properties;
 
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -59,7 +59,7 @@ class CreateEncryptRuleExecutorTest {
     @Test
     void assertCheckSQLStatementWithDuplicateEncryptRule() {
         EncryptRule rule = mock(EncryptRule.class);
-        when(rule.getConfiguration()).thenReturn(getCurrentRuleConfig());
+        when(rule.getAllTableNames()).thenReturn(Arrays.asList("t_user", "t_order"));
         executor.setRule(rule);
         assertThrows(DuplicateRuleException.class, () -> executor.checkBeforeUpdate(createSQLStatement(false, "MD5")));
     }
@@ -72,7 +72,7 @@ class CreateEncryptRuleExecutorTest {
     @Test
     void assertCheckSQLStatementWithConflictColumnNames() {
         EncryptRule rule = mock(EncryptRule.class);
-        when(rule.getConfiguration()).thenReturn(getCurrentRuleConfig());
+        when(rule.getConfiguration()).thenReturn(getCurrentRuleConfiguration());
         executor.setRule(rule);
         assertThrows(InvalidRuleConfigurationException.class, () -> executor.checkBeforeUpdate(createConflictColumnNameSQLStatement()));
     }
@@ -122,18 +122,18 @@ class CreateEncryptRuleExecutorTest {
         return new CreateEncryptRuleStatement(false, Collections.singleton(ruleSegment));
     }
     
-    private EncryptRuleConfiguration getCurrentRuleConfig() {
+    private EncryptRuleConfiguration getCurrentRuleConfiguration() {
         Collection<EncryptTableRuleConfiguration> rules = new LinkedList<>();
         rules.add(new EncryptTableRuleConfiguration("t_user", Collections.emptyList()));
         rules.add(new EncryptTableRuleConfiguration("t_order", Collections.emptyList()));
-        return new EncryptRuleConfiguration(rules, new HashMap<>());
+        return new EncryptRuleConfiguration(rules, Collections.emptyMap());
     }
     
     @Test
     void assertCreateAESEncryptRuleWithPropertiesNotExists() {
         CreateEncryptRuleStatement sqlStatement = createWrongAESEncryptorSQLStatement();
         EncryptRule rule = mock(EncryptRule.class);
-        when(rule.getConfiguration()).thenReturn(getCurrentRuleConfig());
+        when(rule.getConfiguration()).thenReturn(getCurrentRuleConfiguration());
         executor.setRule(rule);
         assertThrows(AlgorithmInitializationException.class, () -> executor.checkBeforeUpdate(sqlStatement));
     }

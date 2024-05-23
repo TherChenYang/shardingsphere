@@ -61,14 +61,18 @@ public final class MySQLDMLStatementVisitor extends MySQLStatementVisitor implem
     
     @Override
     public ASTNode visitCall(final CallContext ctx) {
-        List<ExpressionSegment> params = new ArrayList<>();
+        List<ExpressionSegment> params = new ArrayList<>(ctx.expr().size());
         ctx.expr().forEach(each -> params.add((ExpressionSegment) visit(each)));
-        return new MySQLCallStatement(ctx.identifier().getText(), params);
+        String procedureName = ctx.identifier().getText();
+        if (null != ctx.owner()) {
+            procedureName = ctx.owner().getText() + "." + procedureName;
+        }
+        return new MySQLCallStatement(procedureName, params);
     }
     
     @Override
     public ASTNode visitDoStatement(final DoStatementContext ctx) {
-        List<ExpressionSegment> params = new ArrayList<>();
+        List<ExpressionSegment> params = new ArrayList<>(ctx.expr().size());
         ctx.expr().forEach(each -> params.add((ExpressionSegment) visit(each)));
         return new MySQLDoStatement(params);
     }
@@ -158,7 +162,7 @@ public final class MySQLDMLStatementVisitor extends MySQLStatementVisitor implem
         if (null != ctx.frameClause()) {
             result.setFrameClause(new CommonExpressionSegment(ctx.frameClause().start.getStartIndex(), ctx.frameClause().stop.getStopIndex(), ctx.frameClause().getText()));
         }
-        if (ctx.identifier() != null) {
+        if (null != ctx.identifier()) {
             result.setWindowName(new IdentifierValue(ctx.identifier().getText()));
         }
         return result;

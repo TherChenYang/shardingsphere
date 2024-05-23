@@ -26,13 +26,12 @@ import org.apache.shardingsphere.infra.metadata.database.ShardingSphereDatabase;
 import org.apache.shardingsphere.infra.metadata.database.resource.ResourceMetaData;
 import org.apache.shardingsphere.infra.metadata.database.rule.RuleMetaData;
 import org.apache.shardingsphere.infra.spi.type.typed.TypedSPILoader;
-import org.apache.shardingsphere.infra.state.cluster.ClusterStateContext;
 import org.apache.shardingsphere.infra.state.instance.InstanceStateContext;
 import org.apache.shardingsphere.metadata.persist.MetaDataPersistService;
 import org.apache.shardingsphere.mode.manager.ContextManager;
 import org.apache.shardingsphere.mode.metadata.MetaDataContexts;
+import org.apache.shardingsphere.mode.state.StateContext;
 import org.apache.shardingsphere.traffic.rule.TrafficRule;
-import org.apache.shardingsphere.transaction.ShardingSphereTransactionManagerEngine;
 import org.apache.shardingsphere.transaction.rule.TransactionRule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,7 +42,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.sql.Connection;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Properties;
 
@@ -62,22 +61,19 @@ class DriverStateContextTest {
     void setUp() {
         Map<String, ShardingSphereDatabase> databases = mockDatabases();
         TransactionRule transactionRule = mock(TransactionRule.class);
-        when(transactionRule.getResource()).thenReturn(mock(ShardingSphereTransactionManagerEngine.class));
         TrafficRule trafficRule = mock(TrafficRule.class);
         RuleMetaData globalRuleMetaData = new RuleMetaData(Arrays.asList(transactionRule, trafficRule));
         MetaDataContexts metaDataContexts = new MetaDataContexts(
                 mock(MetaDataPersistService.class), new ShardingSphereMetaData(databases, mock(ResourceMetaData.class), globalRuleMetaData, new ConfigurationProperties(new Properties())));
         when(contextManager.getMetaDataContexts()).thenReturn(metaDataContexts);
-        when(contextManager.getInstanceContext().getInstance().getState()).thenReturn(new InstanceStateContext());
-        when(contextManager.getClusterStateContext()).thenReturn(new ClusterStateContext());
+        when(contextManager.getComputeNodeInstanceContext().getInstance().getState()).thenReturn(new InstanceStateContext());
+        when(contextManager.getStateContext()).thenReturn(new StateContext());
     }
     
     private Map<String, ShardingSphereDatabase> mockDatabases() {
-        Map<String, ShardingSphereDatabase> result = new LinkedHashMap<>();
         ShardingSphereDatabase database = mock(ShardingSphereDatabase.class, Answers.RETURNS_DEEP_STUBS);
         when(database.getProtocolType()).thenReturn(TypedSPILoader.getService(DatabaseType.class, "FIXTURE"));
-        result.put(DefaultDatabase.LOGIC_NAME, database);
-        return result;
+        return Collections.singletonMap(DefaultDatabase.LOGIC_NAME, database);
     }
     
     @Test

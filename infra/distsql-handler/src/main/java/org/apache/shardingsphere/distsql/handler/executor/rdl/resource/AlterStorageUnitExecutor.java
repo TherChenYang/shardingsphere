@@ -65,7 +65,7 @@ public final class AlterStorageUnitExecutor implements DistSQLUpdateExecutor<Alt
         Map<String, DataSourcePoolProperties> propsMap = DataSourceSegmentsConverter.convert(database.getProtocolType(), sqlStatement.getStorageUnits());
         validateHandler.validate(propsMap);
         try {
-            contextManager.getInstanceContext().getModeContextManager().alterStorageUnits(database.getName(), propsMap);
+            contextManager.getComputeNodeInstanceContext().getModeContextManager().alterStorageUnits(database.getName(), propsMap);
         } catch (final SQLException | ShardingSphereExternalException ex) {
             throw new StorageUnitsOperateException("alter", propsMap.keySet(), ex);
         }
@@ -79,19 +79,19 @@ public final class AlterStorageUnitExecutor implements DistSQLUpdateExecutor<Alt
     }
     
     private void checkDuplicatedStorageUnitNames(final Collection<String> storageUnitNames) {
-        Collection<String> duplicatedStorageUnitNames = storageUnitNames.stream().filter(each -> storageUnitNames.stream().filter(each::equals).count() > 1).collect(Collectors.toList());
-        ShardingSpherePreconditions.checkState(duplicatedStorageUnitNames.isEmpty(), () -> new DuplicateStorageUnitException(database.getName(), duplicatedStorageUnitNames));
+        Collection<String> duplicatedStorageUnitNames = storageUnitNames.stream().filter(each -> storageUnitNames.stream().filter(each::equals).count() > 1L).collect(Collectors.toList());
+        ShardingSpherePreconditions.checkMustEmpty(duplicatedStorageUnitNames, () -> new DuplicateStorageUnitException(database.getName(), duplicatedStorageUnitNames));
     }
     
     private void checkStorageUnitNameExisted(final Collection<String> storageUnitNames) {
         Collection<String> notExistedStorageUnitNames = storageUnitNames.stream().filter(each -> !database.getResourceMetaData().getStorageUnits().containsKey(each)).collect(Collectors.toList());
-        ShardingSpherePreconditions.checkState(notExistedStorageUnitNames.isEmpty(), () -> new MissingRequiredStorageUnitsException(database.getName(), notExistedStorageUnitNames));
+        ShardingSpherePreconditions.checkMustEmpty(notExistedStorageUnitNames, () -> new MissingRequiredStorageUnitsException(database.getName(), notExistedStorageUnitNames));
     }
     
     private void checkDatabase(final AlterStorageUnitStatement sqlStatement) {
         Collection<String> invalidStorageUnitNames = sqlStatement.getStorageUnits().stream().collect(Collectors.toMap(DataSourceSegment::getName, each -> each)).entrySet().stream()
                 .filter(each -> !isSameDatabase(each.getValue(), database.getResourceMetaData().getStorageUnits().get(each.getKey()))).map(Entry::getKey).collect(Collectors.toSet());
-        ShardingSpherePreconditions.checkState(invalidStorageUnitNames.isEmpty(), () -> new AlterStorageUnitConnectionInfoException(invalidStorageUnitNames));
+        ShardingSpherePreconditions.checkMustEmpty(invalidStorageUnitNames, () -> new AlterStorageUnitConnectionInfoException(invalidStorageUnitNames));
     }
     
     private boolean isSameDatabase(final DataSourceSegment segment, final StorageUnit storageUnit) {

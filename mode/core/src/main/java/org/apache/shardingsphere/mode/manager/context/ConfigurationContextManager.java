@@ -26,7 +26,7 @@ import org.apache.shardingsphere.infra.config.props.ConfigurationProperties;
 import org.apache.shardingsphere.infra.config.rule.RuleConfiguration;
 import org.apache.shardingsphere.infra.config.rule.scope.DatabaseRuleConfiguration;
 import org.apache.shardingsphere.infra.datasource.pool.props.domain.DataSourcePoolProperties;
-import org.apache.shardingsphere.infra.instance.InstanceContext;
+import org.apache.shardingsphere.infra.instance.ComputeNodeInstanceContext;
 import org.apache.shardingsphere.infra.metadata.ShardingSphereMetaData;
 import org.apache.shardingsphere.infra.metadata.database.ShardingSphereDatabase;
 import org.apache.shardingsphere.infra.metadata.database.resource.ResourceMetaData;
@@ -35,15 +35,20 @@ import org.apache.shardingsphere.infra.metadata.database.resource.unit.StorageUn
 import org.apache.shardingsphere.infra.metadata.database.rule.RuleMetaData;
 import org.apache.shardingsphere.infra.metadata.database.schema.manager.GenericSchemaManager;
 import org.apache.shardingsphere.infra.metadata.database.schema.model.ShardingSphereSchema;
+import org.apache.shardingsphere.infra.rule.PartialRuleUpdateSupported;
 import org.apache.shardingsphere.infra.rule.ShardingSphereRule;
 import org.apache.shardingsphere.infra.rule.builder.database.DatabaseRulesBuilder;
 import org.apache.shardingsphere.infra.rule.builder.global.GlobalRulesBuilder;
+import org.apache.shardingsphere.infra.yaml.config.pojo.rule.YamlRuleConfiguration;
+import org.apache.shardingsphere.metadata.persist.MetaDataPersistService;
+import org.apache.shardingsphere.mode.tuple.annotation.RepositoryTupleEntity;
+import org.apache.shardingsphere.infra.yaml.config.swapper.rule.YamlRuleConfigurationSwapperEngine;
 import org.apache.shardingsphere.metadata.factory.ExternalMetaDataFactory;
 import org.apache.shardingsphere.metadata.factory.InternalMetaDataFactory;
-import org.apache.shardingsphere.metadata.persist.MetaDataBasedPersistService;
 import org.apache.shardingsphere.mode.manager.switcher.ResourceSwitchManager;
 import org.apache.shardingsphere.mode.manager.switcher.SwitchingResource;
 import org.apache.shardingsphere.mode.metadata.MetaDataContexts;
+import org.apache.shardingsphere.transaction.rule.TransactionRule;
 
 import javax.sql.DataSource;
 import java.sql.SQLException;
@@ -53,6 +58,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicReference;
@@ -67,7 +73,7 @@ public final class ConfigurationContextManager {
     
     private final AtomicReference<MetaDataContexts> metaDataContexts;
     
-    private final InstanceContext instanceContext;
+    private final ComputeNodeInstanceContext computeNodeInstanceContext;
     
     /**
      * Register storage unit.
@@ -149,15 +155,21 @@ public final class ConfigurationContextManager {
      * @param databaseName database name
      * @param ruleConfig rule configurations
      */
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public synchronized void alterRuleConfiguration(final String databaseName, final RuleConfiguration ruleConfig) {
+        ShardingSphereDatabase database = metaDataContexts.get().getMetaData().getDatabase(databaseName);
+        Collection<ShardingSphereRule> rules = new LinkedList<>(database.getRuleMetaData().getRules());
+        Optional<ShardingSphereRule> toBeChangedRule = rules.stream().filter(each -> each.getConfiguration().getClass().equals(ruleConfig.getClass())).findFirst();
+        if (toBeChangedRule.isPresent() && toBeChangedRule.get() instanceof PartialRuleUpdateSupported && ((PartialRuleUpdateSupported) toBeChangedRule.get()).partialUpdate(ruleConfig)) {
+            ((PartialRuleUpdateSupported) toBeChangedRule.get()).updateConfiguration(ruleConfig);
+            return;
+        }
         try {
-            ShardingSphereDatabase database = metaDataContexts.get().getMetaData().getDatabase(databaseName);
-            Collection<ShardingSphereRule> rules = new LinkedList<>(database.getRuleMetaData().getRules());
             rules.removeIf(each -> each.getConfiguration().getClass().isAssignableFrom(ruleConfig.getClass()));
             rules.addAll(DatabaseRulesBuilder.build(databaseName, database.getProtocolType(),
                     database.getResourceMetaData().getStorageUnits().entrySet().stream()
                             .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().getDataSource(), (oldValue, currentValue) -> oldValue, LinkedHashMap::new)),
-                    database.getRuleMetaData().getRules(), ruleConfig, instanceContext));
+                    database.getRuleMetaData().getRules(), ruleConfig, computeNodeInstanceContext));
             refreshMetadata(databaseName, database, rules, false);
         } catch (final SQLException ex) {
             log.error("Alter database: {} rule configurations failed", databaseName, ex);
@@ -170,25 +182,27 @@ public final class ConfigurationContextManager {
      * @param databaseName database name
      * @param ruleConfig rule configurations
      */
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public synchronized void dropRuleConfiguration(final String databaseName, final RuleConfiguration ruleConfig) {
+        ShardingSphereDatabase database = metaDataContexts.get().getMetaData().getDatabase(databaseName);
+        Collection<ShardingSphereRule> rules = new LinkedList<>(database.getRuleMetaData().getRules());
+        Optional<ShardingSphereRule> toBeChangedRule = rules.stream().filter(each -> each.getConfiguration().getClass().equals(ruleConfig.getClass())).findFirst();
+        if (toBeChangedRule.isPresent() && toBeChangedRule.get() instanceof PartialRuleUpdateSupported && ((PartialRuleUpdateSupported) toBeChangedRule.get()).partialUpdate(ruleConfig)) {
+            ((PartialRuleUpdateSupported) toBeChangedRule.get()).updateConfiguration(ruleConfig);
+            return;
+        }
         try {
-            ShardingSphereDatabase database = metaDataContexts.get().getMetaData().getDatabase(databaseName);
-            Collection<ShardingSphereRule> rules = new LinkedList<>(database.getRuleMetaData().getRules());
             rules.removeIf(each -> each.getConfiguration().getClass().isAssignableFrom(ruleConfig.getClass()));
-            if (isNotEmptyConfig(ruleConfig)) {
+            if (!((DatabaseRuleConfiguration) ruleConfig).isEmpty()) {
                 rules.addAll(DatabaseRulesBuilder.build(databaseName, database.getProtocolType(),
                         database.getResourceMetaData().getStorageUnits().entrySet().stream()
                                 .collect(Collectors.toMap(Entry::getKey, entry -> entry.getValue().getDataSource(), (oldValue, currentValue) -> oldValue, LinkedHashMap::new)),
-                        database.getRuleMetaData().getRules(), ruleConfig, instanceContext));
+                        database.getRuleMetaData().getRules(), ruleConfig, computeNodeInstanceContext));
             }
             refreshMetadata(databaseName, database, rules, true);
         } catch (final SQLException ex) {
             log.error("Drop database: {} rule configurations failed", databaseName, ex);
         }
-    }
-    
-    private static boolean isNotEmptyConfig(final RuleConfiguration ruleConfig) {
-        return !((DatabaseRuleConfiguration) ruleConfig).isEmpty();
     }
     
     private void refreshMetadata(final String databaseName, final ShardingSphereDatabase database, final Collection<ShardingSphereRule> rules, final boolean isDropConfig) throws SQLException {
@@ -233,13 +247,13 @@ public final class ConfigurationContextManager {
      * @return ShardingSphere databases
      */
     public Map<String, ShardingSphereDatabase> renewDatabase(final ShardingSphereDatabase database, final SwitchingResource resource) {
-        Map<StorageNode, DataSource> newStorageNodes = getNewStorageNodes(database.getResourceMetaData().getDataSources(), resource);
-        Map<String, StorageUnit> newStorageUnits = getNewStorageUnits(database.getResourceMetaData().getStorageUnits(), resource);
+        Map<StorageNode, DataSource> storageNodes = getStorageNodes(database.getResourceMetaData().getDataSources(), resource);
+        Map<String, StorageUnit> storageUnits = getStorageUnits(database.getResourceMetaData().getStorageUnits(), resource);
         return Collections.singletonMap(database.getName().toLowerCase(), new ShardingSphereDatabase(database.getName(), database.getProtocolType(),
-                new ResourceMetaData(newStorageNodes, newStorageUnits), database.getRuleMetaData(), database.getSchemas()));
+                new ResourceMetaData(storageNodes, storageUnits), database.getRuleMetaData(), database.getSchemas()));
     }
     
-    private Map<StorageNode, DataSource> getNewStorageNodes(final Map<StorageNode, DataSource> currentStorageNodes, final SwitchingResource resource) {
+    private Map<StorageNode, DataSource> getStorageNodes(final Map<StorageNode, DataSource> currentStorageNodes, final SwitchingResource resource) {
         Map<StorageNode, DataSource> result = new LinkedHashMap<>(currentStorageNodes.size(), 1F);
         for (Entry<StorageNode, DataSource> entry : currentStorageNodes.entrySet()) {
             if (!resource.getStaleDataSources().containsKey(entry.getKey())) {
@@ -249,7 +263,7 @@ public final class ConfigurationContextManager {
         return result;
     }
     
-    private Map<String, StorageUnit> getNewStorageUnits(final Map<String, StorageUnit> currentStorageUnits, final SwitchingResource resource) {
+    private Map<String, StorageUnit> getStorageUnits(final Map<String, StorageUnit> currentStorageUnits, final SwitchingResource resource) {
         Map<String, StorageUnit> result = new LinkedHashMap<>(currentStorageUnits.size(), 1F);
         for (Entry<String, StorageUnit> entry : currentStorageUnits.entrySet()) {
             if (!resource.getStaleStorageUnitNames().contains(entry.getKey())) {
@@ -266,23 +280,6 @@ public final class ConfigurationContextManager {
                 ((AutoCloseable) each).close();
             }
         }
-    }
-    
-    /**
-     * Create meta data contexts when rule configuration changed.
-     *
-     * @param databaseName database name
-     * @param internalLoadMetaData internal load meta data
-     * @param switchingResource switching resource
-     * @param ruleConfigs rule configs
-     * @return MetaDataContexts meta data contexts
-     * @throws SQLException SQL exception
-     */
-    public MetaDataContexts createMetaDataContextsWhenRuleChanged(final String databaseName, final boolean internalLoadMetaData, final SwitchingResource switchingResource,
-                                                                  final Collection<RuleConfiguration> ruleConfigs) throws SQLException {
-        return newMetaDataContexts(new ShardingSphereMetaData(createChangedDatabases(databaseName, internalLoadMetaData, switchingResource, ruleConfigs),
-                metaDataContexts.get().getMetaData().getGlobalResourceMetaData(), metaDataContexts.get().getMetaData().getGlobalRuleMetaData(),
-                metaDataContexts.get().getMetaData().getProps()));
     }
     
     /**
@@ -322,7 +319,7 @@ public final class ConfigurationContextManager {
         DatabaseConfiguration toBeCreatedDatabaseConfig = getDatabaseConfiguration(
                 metaDataContexts.get().getMetaData().getDatabase(databaseName).getResourceMetaData(), switchingResource, toBeCreatedRuleConfigs);
         ShardingSphereDatabase changedDatabase = createChangedDatabase(metaDataContexts.get().getMetaData().getDatabase(databaseName).getName(), internalLoadMetaData,
-                metaDataContexts.get().getPersistService(), toBeCreatedDatabaseConfig, metaDataContexts.get().getMetaData().getProps(), instanceContext);
+                metaDataContexts.get().getPersistService(), toBeCreatedDatabaseConfig, metaDataContexts.get().getMetaData().getProps(), computeNodeInstanceContext);
         Map<String, ShardingSphereDatabase> result = new LinkedHashMap<>(metaDataContexts.get().getMetaData().getDatabases());
         result.put(databaseName.toLowerCase(), changedDatabase);
         return result;
@@ -345,11 +342,12 @@ public final class ConfigurationContextManager {
         return result;
     }
     
-    private ShardingSphereDatabase createChangedDatabase(final String databaseName, final boolean internalLoadMetaData, final MetaDataBasedPersistService persistService,
-                                                         final DatabaseConfiguration databaseConfig, final ConfigurationProperties props, final InstanceContext instanceContext) throws SQLException {
+    private ShardingSphereDatabase createChangedDatabase(final String databaseName, final boolean internalLoadMetaData, final MetaDataPersistService persistService,
+                                                         final DatabaseConfiguration databaseConfig, final ConfigurationProperties props,
+                                                         final ComputeNodeInstanceContext computeNodeInstanceContext) throws SQLException {
         return internalLoadMetaData
-                ? InternalMetaDataFactory.create(databaseName, persistService, databaseConfig, props, instanceContext)
-                : ExternalMetaDataFactory.create(databaseName, databaseConfig, props, instanceContext);
+                ? InternalMetaDataFactory.create(databaseName, persistService, databaseConfig, props, computeNodeInstanceContext)
+                : ExternalMetaDataFactory.create(databaseName, databaseConfig, props, computeNodeInstanceContext);
     }
     
     private Map<String, ShardingSphereSchema> newShardingSphereSchemas(final ShardingSphereDatabase database) {
@@ -373,30 +371,15 @@ public final class ConfigurationContextManager {
     /**
      * Alter global rule configuration.
      *
-     * @param ruleConfigs global rule configuration
-     */
-    public synchronized void alterGlobalRuleConfiguration(final Collection<RuleConfiguration> ruleConfigs) {
-        if (ruleConfigs.isEmpty()) {
-            return;
-        }
-        closeStaleGlobalRules();
-        RuleMetaData toBeChangedGlobalRuleMetaData = new RuleMetaData(
-                GlobalRulesBuilder.buildRules(ruleConfigs, metaDataContexts.get().getMetaData().getDatabases(), metaDataContexts.get().getMetaData().getProps()));
-        ShardingSphereMetaData toBeChangedMetaData = new ShardingSphereMetaData(metaDataContexts.get().getMetaData().getDatabases(), metaDataContexts.get().getMetaData().getGlobalResourceMetaData(),
-                toBeChangedGlobalRuleMetaData, metaDataContexts.get().getMetaData().getProps());
-        metaDataContexts.set(newMetaDataContexts(toBeChangedMetaData));
-    }
-    
-    /**
-     * Alter global rule configuration.
-     *
      * @param ruleConfig global rule configuration
      */
     public synchronized void alterGlobalRuleConfiguration(final RuleConfiguration ruleConfig) {
         if (null == ruleConfig) {
             return;
         }
-        Collection<ShardingSphereRule> rules = removeSingleGlobalRule(ruleConfig);
+        closeStaleTransactionRule(ruleConfig);
+        Collection<ShardingSphereRule> rules = new LinkedList<>(metaDataContexts.get().getMetaData().getGlobalRuleMetaData().getRules());
+        rules.removeIf(each -> each.getConfiguration().getClass().isAssignableFrom(ruleConfig.getClass()));
         rules.addAll(GlobalRulesBuilder.buildSingleRules(ruleConfig, metaDataContexts.get().getMetaData().getDatabases(), metaDataContexts.get().getMetaData().getProps()));
         metaDataContexts.get().getMetaData().getGlobalRuleMetaData().getRules().clear();
         metaDataContexts.get().getMetaData().getGlobalRuleMetaData().getRules().addAll(rules);
@@ -405,18 +388,16 @@ public final class ConfigurationContextManager {
         metaDataContexts.set(newMetaDataContexts(toBeChangedMetaData));
     }
     
-    private Collection<ShardingSphereRule> removeSingleGlobalRule(final RuleConfiguration ruleConfig) {
-        Collection<ShardingSphereRule> result = new LinkedList<>(metaDataContexts.get().getMetaData().getGlobalRuleMetaData().getRules());
-        result.removeIf(each -> each.getConfiguration().getClass().isAssignableFrom(ruleConfig.getClass()));
-        return result;
-    }
-    
+    // Optimize string comparison rule type.
     @SneakyThrows(Exception.class)
-    private void closeStaleGlobalRules() {
-        for (ShardingSphereRule each : metaDataContexts.get().getMetaData().getGlobalRuleMetaData().getRules()) {
-            if (each instanceof AutoCloseable) {
-                ((AutoCloseable) each).close();
-            }
+    private void closeStaleTransactionRule(final RuleConfiguration ruleConfig) {
+        YamlRuleConfiguration yamlRuleConfig = new YamlRuleConfigurationSwapperEngine().swapToYamlRuleConfiguration(ruleConfig);
+        if (!"transaction".equals(Objects.requireNonNull(yamlRuleConfig.getClass().getAnnotation(RepositoryTupleEntity.class)).value())) {
+            return;
+        }
+        Optional<TransactionRule> transactionRule = metaDataContexts.get().getMetaData().getGlobalRuleMetaData().findSingleRule(TransactionRule.class);
+        if (transactionRule.isPresent()) {
+            ((AutoCloseable) transactionRule.get()).close();
         }
     }
     

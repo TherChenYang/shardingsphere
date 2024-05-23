@@ -17,7 +17,6 @@
 
 package org.apache.shardingsphere.mode.manager;
 
-import com.google.common.base.Strings;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.shardingsphere.infra.config.props.ConfigurationProperties;
@@ -28,7 +27,7 @@ import org.apache.shardingsphere.infra.exception.core.ShardingSpherePrecondition
 import org.apache.shardingsphere.infra.exception.dialect.exception.syntax.database.NoDatabaseSelectedException;
 import org.apache.shardingsphere.infra.exception.dialect.exception.syntax.database.UnknownDatabaseException;
 import org.apache.shardingsphere.infra.executor.kernel.ExecutorEngine;
-import org.apache.shardingsphere.infra.instance.InstanceContext;
+import org.apache.shardingsphere.infra.instance.ComputeNodeInstanceContext;
 import org.apache.shardingsphere.infra.metadata.ShardingSphereMetaData;
 import org.apache.shardingsphere.infra.metadata.database.ShardingSphereDatabase;
 import org.apache.shardingsphere.infra.metadata.database.resource.unit.StorageUnit;
@@ -38,15 +37,15 @@ import org.apache.shardingsphere.infra.metadata.database.schema.builder.GenericS
 import org.apache.shardingsphere.infra.metadata.database.schema.manager.GenericSchemaManager;
 import org.apache.shardingsphere.infra.metadata.database.schema.model.ShardingSphereSchema;
 import org.apache.shardingsphere.infra.rule.builder.global.GlobalRulesBuilder;
-import org.apache.shardingsphere.infra.state.cluster.ClusterState;
-import org.apache.shardingsphere.infra.state.cluster.ClusterStateContext;
-import org.apache.shardingsphere.metadata.persist.MetaDataBasedPersistService;
+import org.apache.shardingsphere.metadata.persist.MetaDataPersistService;
 import org.apache.shardingsphere.mode.manager.context.ConfigurationContextManager;
 import org.apache.shardingsphere.mode.manager.context.ResourceMetaDataContextManager;
 import org.apache.shardingsphere.mode.manager.context.ShardingSphereDatabaseContextManager;
 import org.apache.shardingsphere.mode.manager.switcher.ResourceSwitchManager;
 import org.apache.shardingsphere.mode.manager.switcher.SwitchingResource;
 import org.apache.shardingsphere.mode.metadata.MetaDataContexts;
+import org.apache.shardingsphere.mode.service.PersistServiceFacade;
+import org.apache.shardingsphere.mode.state.StateContext;
 
 import java.sql.SQLException;
 import java.util.Collection;
@@ -63,7 +62,7 @@ public final class ContextManager implements AutoCloseable {
     
     private final AtomicReference<MetaDataContexts> metaDataContexts;
     
-    private final InstanceContext instanceContext;
+    private final ComputeNodeInstanceContext computeNodeInstanceContext;
     
     private final ShardingSphereDatabaseContextManager shardingSphereDatabaseContextManager;
     
@@ -73,15 +72,19 @@ public final class ContextManager implements AutoCloseable {
     
     private final ExecutorEngine executorEngine;
     
-    private final ClusterStateContext clusterStateContext = new ClusterStateContext();
+    private final StateContext stateContext;
     
-    public ContextManager(final MetaDataContexts metaDataContexts, final InstanceContext instanceContext) {
+    private final PersistServiceFacade persistServiceFacade;
+    
+    public ContextManager(final MetaDataContexts metaDataContexts, final ComputeNodeInstanceContext computeNodeInstanceContext) {
         this.metaDataContexts = new AtomicReference<>(metaDataContexts);
-        this.instanceContext = instanceContext;
+        this.computeNodeInstanceContext = computeNodeInstanceContext;
         shardingSphereDatabaseContextManager = new ShardingSphereDatabaseContextManager(this.metaDataContexts);
-        configurationContextManager = new ConfigurationContextManager(this.metaDataContexts, instanceContext);
+        configurationContextManager = new ConfigurationContextManager(this.metaDataContexts, computeNodeInstanceContext);
         resourceMetaDataContextManager = new ResourceMetaDataContextManager(this.metaDataContexts);
         executorEngine = ExecutorEngine.createExecutorEngineWithSize(metaDataContexts.getMetaData().getProps().<Integer>getValue(ConfigurationPropertyKey.KERNEL_EXECUTOR_SIZE));
+        stateContext = new StateContext();
+        persistServiceFacade = new PersistServiceFacade(metaDataContexts.getPersistService().getRepository(), computeNodeInstanceContext.getModeConfiguration(), this);
     }
     
     /**
@@ -98,7 +101,7 @@ public final class ContextManager implements AutoCloseable {
      * 
      * @param metaDataContexts meta data contexts
      */
-    public synchronized void renewMetaDataContexts(final MetaDataContexts metaDataContexts) {
+    public void renewMetaDataContexts(final MetaDataContexts metaDataContexts) {
         this.metaDataContexts.set(metaDataContexts);
     }
     
@@ -109,7 +112,7 @@ public final class ContextManager implements AutoCloseable {
      * @return got database
      */
     public ShardingSphereDatabase getDatabase(final String name) {
-        ShardingSpherePreconditions.checkState(!Strings.isNullOrEmpty(name), NoDatabaseSelectedException::new);
+        ShardingSpherePreconditions.checkNotEmpty(name, NoDatabaseSelectedException::new);
         ShardingSphereMetaData metaData = getMetaDataContexts().getMetaData();
         ShardingSpherePreconditions.checkState(metaData.containsDatabase(name), () -> new UnknownDatabaseException(name));
         return metaData.getDatabase(name);
@@ -122,7 +125,7 @@ public final class ContextManager implements AutoCloseable {
      * @return storage units
      */
     public Map<String, StorageUnit> getStorageUnits(final String databaseName) {
-        return metaDataContexts.get().getMetaData().getDatabase(databaseName).getResourceMetaData().getStorageUnits();
+        return getDatabase(databaseName).getResourceMetaData().getStorageUnits();
     }
     
     /**
@@ -134,14 +137,16 @@ public final class ContextManager implements AutoCloseable {
     public void refreshDatabaseMetaData(final ShardingSphereDatabase database, final boolean force) {
         try {
             MetaDataContexts reloadedMetaDataContexts = createMetaDataContexts(database);
-            MetaDataBasedPersistService persistService = metaDataContexts.get().getPersistService();
+            MetaDataPersistService persistService = metaDataContexts.get().getPersistService();
             if (force) {
                 metaDataContexts.set(reloadedMetaDataContexts);
-                database.getSchemas().forEach((schemaName, schema) -> persistService.getDatabaseMetaDataService().persistByAlterConfiguration(database.getName(), schemaName, schema));
+                metaDataContexts.get().getMetaData().getDatabase(database.getName()).getSchemas()
+                        .forEach((schemaName, schema) -> persistService.getDatabaseMetaDataService().persistByAlterConfiguration(database.getName(), schemaName, schema));
             } else {
                 deletedSchemaNames(database.getName(), reloadedMetaDataContexts.getMetaData().getDatabase(database.getName()), database);
                 metaDataContexts.set(reloadedMetaDataContexts);
-                database.getSchemas().forEach((schemaName, schema) -> persistService.getDatabaseMetaDataService().compareAndPersist(database.getName(), schemaName, schema));
+                metaDataContexts.get().getMetaData().getDatabase(database.getName()).getSchemas()
+                        .forEach((schemaName, schema) -> persistService.getDatabaseMetaDataService().compareAndPersist(database.getName(), schemaName, schema));
             }
         } catch (final SQLException ex) {
             log.error("Refresh database meta data: {} failed", database.getName(), ex);
@@ -156,16 +161,17 @@ public final class ContextManager implements AutoCloseable {
     public void refreshTableMetaData(final ShardingSphereDatabase database) {
         try {
             MetaDataContexts reloadedMetaDataContexts = createMetaDataContexts(database);
-            deletedSchemaNames(database.getName(), database, database);
+            deletedSchemaNames(database.getName(), reloadedMetaDataContexts.getMetaData().getDatabase(database.getName()), database);
             metaDataContexts.set(reloadedMetaDataContexts);
-            database.getSchemas().forEach((schemaName, schema) -> metaDataContexts.get().getPersistService().getDatabaseMetaDataService().compareAndPersist(database.getName(), schemaName, schema));
+            metaDataContexts.get().getMetaData().getDatabase(database.getName()).getSchemas()
+                    .forEach((schemaName, schema) -> metaDataContexts.get().getPersistService().getDatabaseMetaDataService().compareAndPersist(database.getName(), schemaName, schema));
         } catch (final SQLException ex) {
             log.error("Refresh table meta data: {} failed", database.getName(), ex);
         }
     }
     
     private MetaDataContexts createMetaDataContexts(final ShardingSphereDatabase database) throws SQLException {
-        MetaDataBasedPersistService metaDataPersistService = metaDataContexts.get().getPersistService();
+        MetaDataPersistService metaDataPersistService = metaDataContexts.get().getPersistService();
         Map<String, DataSourcePoolProperties> dataSourcePoolPropsFromRegCenter = metaDataPersistService.getDataSourceUnitService().load(database.getName());
         SwitchingResource switchingResource = new ResourceSwitchManager().alterStorageUnit(database.getResourceMetaData(), dataSourcePoolPropsFromRegCenter);
         metaDataContexts.get().getMetaData().getDatabases().putAll(configurationContextManager.renewDatabase(database, switchingResource));
@@ -268,18 +274,6 @@ public final class ContextManager implements AutoCloseable {
         ShardingSphereSchema schema = GenericSchemaBuilder.build(Collections.singleton(tableName), material).getOrDefault(schemaName, new ShardingSphereSchema());
         metaDataContexts.get().getPersistService().getDatabaseMetaDataService().getTableMetaDataPersistService()
                 .persist(database.getName(), schemaName, Collections.singletonMap(tableName, schema.getTable(tableName)));
-    }
-    
-    /**
-     * Update cluster state.
-     * 
-     * @param status status
-     */
-    public void updateClusterState(final String status) {
-        try {
-            clusterStateContext.switchState(ClusterState.valueOf(status));
-        } catch (final IllegalArgumentException ignore) {
-        }
     }
     
     @Override

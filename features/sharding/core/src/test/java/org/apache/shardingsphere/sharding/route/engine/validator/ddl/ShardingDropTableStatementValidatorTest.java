@@ -27,7 +27,7 @@ import org.apache.shardingsphere.infra.route.context.RouteContext;
 import org.apache.shardingsphere.infra.route.context.RouteMapper;
 import org.apache.shardingsphere.infra.route.context.RouteUnit;
 import org.apache.shardingsphere.sharding.exception.connection.ShardingDDLRouteException;
-import org.apache.shardingsphere.sharding.exception.metadata.DropInUsedTablesException;
+import org.apache.shardingsphere.sharding.exception.metadata.InUsedTablesException;
 import org.apache.shardingsphere.sharding.route.engine.validator.ddl.impl.ShardingDropTableStatementValidator;
 import org.apache.shardingsphere.sharding.rule.ShardingRule;
 import org.apache.shardingsphere.sharding.rule.ShardingTable;
@@ -71,7 +71,7 @@ class ShardingDropTableStatementValidatorTest {
     
     @BeforeEach
     void init() {
-        Map<String, ShardingTable> shardingTables = new LinkedHashMap<>();
+        Map<String, ShardingTable> shardingTables = new LinkedHashMap<>(2, 1F);
         shardingTables.put("t_order_item", createShardingTable("t_order_item"));
         shardingTables.put("t_order", createShardingTable("t_order"));
         when(shardingRule.getShardingTables()).thenReturn(shardingTables);
@@ -96,7 +96,7 @@ class ShardingDropTableStatementValidatorTest {
         routeUnits.add(routeUnit);
         RouteContext routeContext = mock(RouteContext.class);
         when(routeContext.getRouteUnits()).thenReturn(routeUnits);
-        assertThrows(DropInUsedTablesException.class,
+        assertThrows(InUsedTablesException.class,
                 () -> validator.postValidate(shardingRule, new DropTableStatementContext(sqlStatement), new HintValueContext(), Collections.emptyList(), database,
                         mock(ConfigurationProperties.class), routeContext));
     }

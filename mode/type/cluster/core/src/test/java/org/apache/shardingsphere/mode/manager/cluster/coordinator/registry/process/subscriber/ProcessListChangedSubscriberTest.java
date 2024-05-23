@@ -34,7 +34,6 @@ import org.apache.shardingsphere.infra.util.eventbus.EventBusContext;
 import org.apache.shardingsphere.mode.manager.ContextManager;
 import org.apache.shardingsphere.mode.manager.ContextManagerBuilderParameter;
 import org.apache.shardingsphere.mode.manager.cluster.ClusterContextManagerBuilder;
-import org.apache.shardingsphere.mode.manager.cluster.coordinator.RegistryCenter;
 import org.apache.shardingsphere.mode.manager.cluster.coordinator.registry.status.compute.event.KillLocalProcessCompletedEvent;
 import org.apache.shardingsphere.mode.manager.cluster.coordinator.registry.status.compute.event.KillLocalProcessEvent;
 import org.apache.shardingsphere.mode.manager.cluster.coordinator.registry.status.compute.event.ReportLocalProcessesCompletedEvent;
@@ -58,6 +57,7 @@ import java.util.Properties;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -73,19 +73,20 @@ class ProcessListChangedSubscriberTest {
     
     private ContextManager contextManager;
     
-    private RegistryCenter registryCenter;
+    @Mock
+    private ClusterPersistRepository repository;
     
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     private ShardingSphereDatabase database;
     
     @BeforeEach
     void setUp() throws SQLException {
-        contextManager = new ClusterContextManagerBuilder().build(createContextManagerBuilderParameter());
+        EventBusContext eventBusContext = new EventBusContext();
+        contextManager = new ClusterContextManagerBuilder().build(createContextManagerBuilderParameter(), eventBusContext);
         contextManager.renewMetaDataContexts(new MetaDataContexts(contextManager.getMetaDataContexts().getPersistService(), new ShardingSphereMetaData(createDatabases(),
                 contextManager.getMetaDataContexts().getMetaData().getGlobalResourceMetaData(), contextManager.getMetaDataContexts().getMetaData().getGlobalRuleMetaData(),
                 new ConfigurationProperties(new Properties()))));
-        registryCenter = new RegistryCenter(mock(ClusterPersistRepository.class), new EventBusContext(), mock(ProxyInstanceMetaData.class), null);
-        subscriber = new ProcessListChangedSubscriber(registryCenter, contextManager);
+        subscriber = new ProcessListChangedSubscriber(contextManager, repository);
     }
     
     private ContextManagerBuilderParameter createContextManagerBuilderParameter() {
@@ -110,10 +111,12 @@ class ProcessListChangedSubscriberTest {
         String processId = "foo_id";
         when(process.getId()).thenReturn(processId);
         when(process.isInterrupted()).thenReturn(false);
+        when(process.isIdle()).thenReturn(false);
+        when(process.getCompletedUnitCount()).thenReturn(new AtomicInteger(0));
+        when(process.getTotalUnitCount()).thenReturn(new AtomicInteger(0));
         ProcessRegistry.getInstance().add(process);
-        String instanceId = contextManager.getInstanceContext().getInstance().getMetaData().getId();
+        String instanceId = contextManager.getComputeNodeInstanceContext().getInstance().getMetaData().getId();
         subscriber.reportLocalProcesses(new ReportLocalProcessesEvent(instanceId, processId));
-        ClusterPersistRepository repository = registryCenter.getRepository();
         verify(repository).persist("/execution_nodes/foo_id/" + instanceId,
                 "processes:" + System.lineSeparator() + "- completedUnitCount: 0" + System.lineSeparator()
                         + "  id: foo_id" + System.lineSeparator()
@@ -140,10 +143,9 @@ class ProcessListChangedSubscriberTest {
     
     @Test
     void assertKillLocalProcess() throws SQLException {
-        String instanceId = contextManager.getInstanceContext().getInstance().getMetaData().getId();
+        String instanceId = contextManager.getComputeNodeInstanceContext().getInstance().getMetaData().getId();
         String processId = "foo_id";
         subscriber.killLocalProcess(new KillLocalProcessEvent(instanceId, processId));
-        ClusterPersistRepository repository = registryCenter.getRepository();
         verify(repository).delete("/nodes/compute_nodes/kill_process_trigger/" + instanceId + ":foo_id");
     }
     

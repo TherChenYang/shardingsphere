@@ -18,6 +18,8 @@
 package org.apache.shardingsphere.mode.manager.cluster.coordinator.subscriber;
 
 import com.google.common.eventbus.Subscribe;
+import lombok.RequiredArgsConstructor;
+import org.apache.shardingsphere.infra.util.eventbus.EventSubscriber;
 import org.apache.shardingsphere.mode.manager.ContextManager;
 import org.apache.shardingsphere.mode.manager.cluster.coordinator.registry.data.event.DatabaseDataAddedEvent;
 import org.apache.shardingsphere.mode.manager.cluster.coordinator.registry.data.event.DatabaseDataDeletedEvent;
@@ -30,15 +32,11 @@ import org.apache.shardingsphere.mode.manager.cluster.coordinator.registry.data.
 /**
  * Database changed subscriber.
  */
+@RequiredArgsConstructor
 @SuppressWarnings("unused")
-public final class DatabaseChangedSubscriber {
+public final class DatabaseChangedSubscriber implements EventSubscriber {
     
     private final ContextManager contextManager;
-    
-    public DatabaseChangedSubscriber(final ContextManager contextManager) {
-        this.contextManager = contextManager;
-        contextManager.getInstanceContext().getEventBusContext().register(this);
-    }
     
     /**
      * Renew to persist ShardingSphere database data.

@@ -82,8 +82,8 @@ public final class SingleRuleConfigurationDecorator implements RuleConfiguration
     
     private Collection<String> loadSpecifiedTables(final boolean isSchemaSupportedDatabaseType, final Map<String, Collection<DataNode>> actualDataNodes,
                                                    final Collection<ShardingSphereRule> builtRules, final Collection<DataNode> configuredDataNodes) {
-        Collection<String> expandRequiredDataSources = new LinkedHashSet<>();
-        Map<String, DataNode> expectedDataNodes = new LinkedHashMap<>();
+        Collection<String> expandRequiredDataSources = new LinkedHashSet<>(configuredDataNodes.size(), 1F);
+        Map<String, DataNode> expectedDataNodes = new LinkedHashMap<>(configuredDataNodes.size(), 1F);
         for (DataNode each : configuredDataNodes) {
             if (SingleTableConstants.ASTERISK.equals(each.getTableName())) {
                 expandRequiredDataSources.add(each.getDataSourceName());
@@ -101,7 +101,7 @@ public final class SingleRuleConfigurationDecorator implements RuleConfiguration
     private Collection<String> loadSpecifiedTablesWithExpand(final boolean isSchemaSupportedDatabaseType, final Map<String, Collection<DataNode>> actualDataNodes,
                                                              final Collection<String> featureRequiredSingleTables, final Collection<String> expandRequiredDataSources,
                                                              final Map<String, DataNode> expectedDataNodes) {
-        Collection<String> result = new LinkedHashSet<>();
+        Collection<String> result = new LinkedHashSet<>(actualDataNodes.size(), 1F);
         for (Entry<String, Collection<DataNode>> entry : actualDataNodes.entrySet()) {
             if (featureRequiredSingleTables.contains(entry.getKey())) {
                 continue;
@@ -125,9 +125,9 @@ public final class SingleRuleConfigurationDecorator implements RuleConfiguration
     
     private Collection<String> loadSpecifiedTablesWithoutExpand(final boolean isSchemaSupportedDatabaseType, final Map<String, Collection<DataNode>> actualDataNodes,
                                                                 final Collection<DataNode> configuredDataNodes) {
-        Collection<String> result = new LinkedHashSet<>();
+        Collection<String> result = new LinkedHashSet<>(configuredDataNodes.size(), 1F);
         for (DataNode each : configuredDataNodes) {
-            ShardingSpherePreconditions.checkState(actualDataNodes.containsKey(each.getTableName()), () -> new SingleTableNotFoundException(getTableNodeString(isSchemaSupportedDatabaseType, each)));
+            ShardingSpherePreconditions.checkContainsKey(actualDataNodes, each.getTableName(), () -> new SingleTableNotFoundException(getTableNodeString(isSchemaSupportedDatabaseType, each)));
             DataNode actualDataNode = actualDataNodes.get(each.getTableName()).iterator().next();
             String tableNodeStr = getTableNodeString(isSchemaSupportedDatabaseType, actualDataNode);
             ShardingSpherePreconditions.checkState(actualDataNode.equals(each),
@@ -155,12 +155,11 @@ public final class SingleRuleConfigurationDecorator implements RuleConfiguration
     private void checkRuleConfiguration(final String databaseName, final Map<String, DataSource> dataSources, final Collection<String> excludedTables, final Collection<DataNode> dataNodes) {
         for (DataNode each : dataNodes) {
             if (!SingleTableConstants.ASTERISK.equals(each.getDataSourceName())) {
-                ShardingSpherePreconditions.checkState(dataSources.containsKey(each.getDataSourceName()),
+                ShardingSpherePreconditions.checkContainsKey(dataSources, each.getDataSourceName(),
                         () -> new InvalidSingleRuleConfigurationException(String.format("Data source `%s` does not exist in database `%s`", each.getDataSourceName(), databaseName)));
             }
-            ShardingSpherePreconditions.checkState(!excludedTables.contains(each.getTableName()),
-                    () -> new InvalidSingleRuleConfigurationException(String.format("Table `%s` existed and is not a single table in database `%s`",
-                            each.getTableName(), databaseName)));
+            ShardingSpherePreconditions.checkNotContains(excludedTables, each.getTableName(),
+                    () -> new InvalidSingleRuleConfigurationException(String.format("Table `%s` existed and is not a single table in database `%s`", each.getTableName(), databaseName)));
         }
     }
     

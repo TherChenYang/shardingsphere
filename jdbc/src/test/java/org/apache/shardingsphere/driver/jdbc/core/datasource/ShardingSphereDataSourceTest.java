@@ -57,8 +57,8 @@ class ShardingSphereDataSourceTest {
         try (ShardingSphereDataSource actual = new ShardingSphereDataSource(DefaultDatabase.LOGIC_NAME, null)) {
             ContextManager contextManager = getContextManager(actual);
             assertNotNull(contextManager.getMetaDataContexts().getMetaData().getDatabase(DefaultDatabase.LOGIC_NAME));
-            assertThat(contextManager.getClusterStateContext().getCurrentState(), is(ClusterState.OK));
-            assertThat(contextManager.getInstanceContext().getInstance().getState().getCurrentState(), is(InstanceState.OK));
+            assertThat(contextManager.getStateContext().getCurrentClusterState(), is(ClusterState.OK));
+            assertThat(contextManager.getComputeNodeInstanceContext().getInstance().getState().getCurrentState(), is(InstanceState.OK));
             assertTrue(contextManager.getStorageUnits(DefaultDatabase.LOGIC_NAME).isEmpty());
         }
     }
@@ -70,8 +70,8 @@ class ShardingSphereDataSourceTest {
         try (ShardingSphereDataSource actual = createShardingSphereDataSource(new MockedDataSource(connection))) {
             ContextManager contextManager = getContextManager(actual);
             assertNotNull(contextManager.getMetaDataContexts().getMetaData().getDatabase(DefaultDatabase.LOGIC_NAME));
-            assertThat(contextManager.getClusterStateContext().getCurrentState(), is(ClusterState.OK));
-            assertThat(contextManager.getInstanceContext().getInstance().getState().getCurrentState(), is(InstanceState.OK));
+            assertThat(contextManager.getStateContext().getCurrentClusterState(), is(ClusterState.OK));
+            assertThat(contextManager.getComputeNodeInstanceContext().getInstance().getState().getCurrentState(), is(InstanceState.OK));
             assertThat(contextManager.getStorageUnits(DefaultDatabase.LOGIC_NAME).size(), is(1));
             assertThat(contextManager.getStorageUnits(DefaultDatabase.LOGIC_NAME).get("ds").getDataSource().getConnection().getMetaData().getURL(), is("jdbc:mock://127.0.0.1/foo_ds"));
         }
@@ -81,7 +81,7 @@ class ShardingSphereDataSourceTest {
     void assertRemoveGlobalRuleConfiguration() throws Exception {
         Connection connection = mock(Connection.class, RETURNS_DEEP_STUBS);
         when(connection.getMetaData().getURL()).thenReturn("jdbc:mock://127.0.0.1/foo_ds");
-        CacheOption cacheOption = new CacheOption(1024, 1024);
+        CacheOption cacheOption = new CacheOption(1024, 1024L);
         SQLParserRuleConfiguration sqlParserRuleConfig = new SQLParserRuleConfiguration(cacheOption, cacheOption);
         try (
                 ShardingSphereDataSource actual = new ShardingSphereDataSource(DefaultDatabase.LOGIC_NAME,
@@ -150,8 +150,8 @@ class ShardingSphereDataSourceTest {
         result.setPassword("root");
         result.setMaximumPoolSize(10);
         result.setMinimumIdle(2);
-        result.setConnectionTimeout(15 * 1000L);
-        result.setIdleTimeout(40 * 1000L);
+        result.setConnectionTimeout(15L * 1000L);
+        result.setIdleTimeout(40L * 1000L);
         return result;
     }
 }

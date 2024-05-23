@@ -27,13 +27,16 @@ import org.apache.shardingsphere.driver.jdbc.unsupported.AbstractUnsupportedOper
 import org.apache.shardingsphere.infra.database.core.metadata.database.DialectDatabaseMetaData;
 import org.apache.shardingsphere.infra.database.core.type.DatabaseType;
 import org.apache.shardingsphere.infra.database.core.type.DatabaseTypeRegistry;
+import org.apache.shardingsphere.infra.exception.dialect.SQLExceptionTransformEngine;
 import org.apache.shardingsphere.mode.metadata.MetaDataContexts;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.SQLStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.DMLStatement;
 import org.apache.shardingsphere.sql.parser.sql.common.statement.dml.SelectStatement;
-import org.apache.shardingsphere.transaction.ConnectionTransaction;
 import org.apache.shardingsphere.transaction.api.TransactionType;
+import org.apache.shardingsphere.transaction.implicit.ImplicitTransactionCallback;
+import org.apache.shardingsphere.transaction.rule.TransactionRule;
 
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.sql.Statement;
@@ -60,12 +63,29 @@ public abstract class AbstractStatementAdapter extends AbstractUnsupportedOperat
         if (!connection.getAutoCommit()) {
             return false;
         }
-        ConnectionTransaction connectionTransaction = connection.getDatabaseConnectionManager().getConnectionTransaction();
-        boolean isInTransaction = connection.getDatabaseConnectionManager().getConnectionContext().getTransactionContext().isInTransaction();
-        if (!TransactionType.isDistributedTransaction(connectionTransaction.getTransactionType()) || isInTransaction) {
+        TransactionType transactionType = connection.getContextManager().getMetaDataContexts().getMetaData().getGlobalRuleMetaData().getSingleRule(TransactionRule.class).getDefaultType();
+        boolean isInTransaction = connection.getDatabaseConnectionManager().getConnectionTransaction().isInTransaction();
+        if (!TransactionType.isDistributedTransaction(transactionType) || isInTransaction) {
             return false;
         }
         return isWriteDMLStatement(sqlStatement) && multiExecutionUnits;
+    }
+    
+    protected final <T> T executeWithImplicitCommitTransaction(final ImplicitTransactionCallback<T> callback, final Connection connection, final DatabaseType databaseType) throws SQLException {
+        T result;
+        try {
+            connection.setAutoCommit(false);
+            result = callback.execute();
+            connection.commit();
+            // CHECKSTYLE:OFF
+        } catch (final Exception ex) {
+            // CHECKSTYLE:ON
+            connection.rollback();
+            throw SQLExceptionTransformEngine.toSQLException(ex, databaseType);
+        } finally {
+            connection.setAutoCommit(true);
+        }
+        return result;
     }
     
     private boolean isWriteDMLStatement(final SQLStatement sqlStatement) {
@@ -77,7 +97,7 @@ public abstract class AbstractStatementAdapter extends AbstractUnsupportedOperat
             DatabaseType databaseType = metaDataContexts.getMetaData().getDatabase(connection.getDatabaseName()).getProtocolType();
             DialectDatabaseMetaData dialectDatabaseMetaData = new DatabaseTypeRegistry(databaseType).getDialectDatabaseMetaData();
             if (dialectDatabaseMetaData.getDefaultSchema().isPresent()) {
-                connection.getDatabaseConnectionManager().getConnectionTransaction().setRollbackOnly(true);
+                connection.getDatabaseConnectionManager().getConnectionContext().getTransactionContext().setExceptionOccur(true);
             }
         }
     }
@@ -171,7 +191,7 @@ public abstract class AbstractStatementAdapter extends AbstractUnsupportedOperat
     }
     
     private int accumulate() throws SQLException {
-        long result = 0;
+        long result = 0L;
         boolean hasResult = false;
         for (Statement each : getRoutedStatements()) {
             int updateCount = each.getUpdateCount();

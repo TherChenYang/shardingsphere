@@ -134,7 +134,7 @@ public final class MigrationJobAPI implements TransmissionJobAPI {
             if (configSources.containsKey(dataSourceName)) {
                 continue;
             }
-            ShardingSpherePreconditions.checkState(metaDataDataSource.containsKey(dataSourceName),
+            ShardingSpherePreconditions.checkContainsKey(metaDataDataSource, dataSourceName,
                     () -> new PipelineInvalidParameterException(dataSourceName + " doesn't exist. Run `SHOW MIGRATION SOURCE STORAGE UNITS;` to verify it."));
             Map<String, Object> sourceDataSourcePoolProps = dataSourceConfigSwapper.swapToMap(metaDataDataSource.get(dataSourceName));
             StandardPipelineDataSourceConfiguration sourceDataSourceConfig = new StandardPipelineDataSourceConfiguration(sourceDataSourcePoolProps);
@@ -173,7 +173,7 @@ public final class MigrationJobAPI implements TransmissionJobAPI {
     }
     
     private PipelineDataSourceConfiguration buildTargetPipelineDataSourceConfiguration(final ShardingSphereDatabase targetDatabase) {
-        Map<String, Map<String, Object>> targetPoolProps = new HashMap<>();
+        Map<String, Map<String, Object>> targetPoolProps = new HashMap<>(targetDatabase.getResourceMetaData().getStorageUnits().size(), 1F);
         YamlDataSourceConfigurationSwapper dataSourceConfigSwapper = new YamlDataSourceConfigurationSwapper();
         for (Entry<String, StorageUnit> entry : targetDatabase.getResourceMetaData().getStorageUnits().entrySet()) {
             targetPoolProps.put(entry.getKey(), dataSourceConfigSwapper.swapToMap(entry.getValue().getDataSourcePoolProperties()));
@@ -183,7 +183,7 @@ public final class MigrationJobAPI implements TransmissionJobAPI {
     }
     
     private YamlRootConfiguration buildYamlRootConfiguration(final String databaseName, final Map<String, Map<String, Object>> yamlDataSources, final Collection<RuleConfiguration> rules) {
-        ShardingSpherePreconditions.checkState(!rules.isEmpty(), () -> new EmptyRuleException(databaseName));
+        ShardingSpherePreconditions.checkNotEmpty(rules, () -> new EmptyRuleException(databaseName));
         YamlRootConfiguration result = new YamlRootConfiguration();
         result.setDatabaseName(databaseName);
         result.setDataSources(yamlDataSources);
@@ -192,7 +192,7 @@ public final class MigrationJobAPI implements TransmissionJobAPI {
     }
     
     private Map<String, String> buildTargetTableSchemaMap(final Map<String, List<DataNode>> sourceDataNodes) {
-        Map<String, String> result = new LinkedHashMap<>();
+        Map<String, String> result = new LinkedHashMap<>(sourceDataNodes.size(), 1F);
         sourceDataNodes.forEach((tableName, dataNodes) -> result.put(tableName, dataNodes.get(0).getSchemaName()));
         return result;
     }
@@ -211,7 +211,7 @@ public final class MigrationJobAPI implements TransmissionJobAPI {
                 duplicateDataSourceNames.add(entry.getKey());
             }
         }
-        ShardingSpherePreconditions.checkState(duplicateDataSourceNames.isEmpty(), () -> new DuplicateStorageUnitException(contextKey.getDatabaseName(), duplicateDataSourceNames));
+        ShardingSpherePreconditions.checkMustEmpty(duplicateDataSourceNames, () -> new DuplicateStorageUnitException(contextKey.getDatabaseName(), duplicateDataSourceNames));
         Map<String, DataSourcePoolProperties> result = new LinkedHashMap<>(existDataSources);
         result.putAll(propsMap);
         dataSourcePersistService.persist(contextKey, getType(), result);
@@ -226,7 +226,7 @@ public final class MigrationJobAPI implements TransmissionJobAPI {
     public void dropMigrationSourceResources(final PipelineContextKey contextKey, final Collection<String> resourceNames) {
         Map<String, DataSourcePoolProperties> metaDataDataSource = dataSourcePersistService.load(contextKey, getType());
         Collection<String> notExistedResources = resourceNames.stream().filter(each -> !metaDataDataSource.containsKey(each)).collect(Collectors.toList());
-        ShardingSpherePreconditions.checkState(notExistedResources.isEmpty(), () -> new MissingRequiredStorageUnitsException(contextKey.getDatabaseName(), notExistedResources));
+        ShardingSpherePreconditions.checkMustEmpty(notExistedResources, () -> new MissingRequiredStorageUnitsException(contextKey.getDatabaseName(), notExistedResources));
         for (String each : resourceNames) {
             metaDataDataSource.remove(each);
         }
@@ -285,7 +285,7 @@ public final class MigrationJobAPI implements TransmissionJobAPI {
     }
     
     private void refreshTableMetadata(final String jobId, final String databaseName) {
-        // TODO use origin database name now, wait reloadDatabaseMetaData fix case-sensitive probelm
+        // TODO use origin database name now, wait reloadDatabaseMetaData fix case-sensitive problem
         ContextManager contextManager = PipelineContextManager.getContext(PipelineJobIdUtils.parseContextKey(jobId)).getContextManager();
         ShardingSphereDatabase database = contextManager.getMetaDataContexts().getMetaData().getDatabase(databaseName);
         contextManager.refreshTableMetaData(database);

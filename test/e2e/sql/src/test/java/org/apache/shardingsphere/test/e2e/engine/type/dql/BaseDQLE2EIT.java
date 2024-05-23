@@ -86,9 +86,9 @@ public abstract class BaseDQLE2EIT {
             synchronized (FILLED_SUITES) {
                 if (!FILLED_SUITES.contains(cacheKey)) {
                     new DataSetEnvironmentManager(
-                            new ScenarioDataPath(testParam.getScenario()).getDataSetFile(Type.ACTUAL), containerComposer.getActualDataSourceMap()).fillData();
+                            new ScenarioDataPath(testParam.getScenario()).getDataSetFile(Type.ACTUAL), containerComposer.getActualDataSourceMap(), testParam.getDatabaseType()).fillData();
                     new DataSetEnvironmentManager(
-                            new ScenarioDataPath(testParam.getScenario()).getDataSetFile(Type.EXPECTED), containerComposer.getExpectedDataSourceMap()).fillData();
+                            new ScenarioDataPath(testParam.getScenario()).getDataSetFile(Type.EXPECTED), containerComposer.getExpectedDataSourceMap(), testParam.getDatabaseType()).fillData();
                     FILLED_SUITES.add(cacheKey);
                 }
             }
@@ -155,11 +155,11 @@ public abstract class BaseDQLE2EIT {
         int rowCount = 0;
         ResultSetMetaData actualMetaData = actual.getMetaData();
         while (actual.next()) {
-            assertTrue(rowCount < expected.size(), "Size of actual result set is different with size of expected dat set rows.");
+            assertTrue(rowCount < expected.size(), "Size of actual result set is different with size of expected data set rows.");
             assertRow(actual, notAssertionColumns, actualMetaData, expected.get(rowCount));
             rowCount++;
         }
-        assertThat("Size of actual result set is different with size of expected dat set rows.", rowCount, is(expected.size()));
+        assertThat("Size of actual result set is different with size of expected data set rows.", rowCount, is(expected.size()));
     }
     
     private void assertRow(final ResultSet actualResultSet, final ResultSetMetaData actualMetaData,

@@ -47,7 +47,7 @@ import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.item.Aggregat
 import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.item.ExpressionProjectionSegment;
 import org.apache.shardingsphere.sql.parser.sql.common.segment.dml.item.IntervalExpressionProjection;
 import org.apache.shardingsphere.sql.parser.sql.common.segment.generic.DataTypeSegment;
-import org.apache.shardingsphere.sql.parser.sql.dialect.segment.mysql.match.MatchAgainstExpression;
+import org.apache.shardingsphere.sql.parser.sql.common.segment.generic.match.MatchAgainstExpression;
 import org.apache.shardingsphere.sql.parser.sql.dialect.segment.oracle.interval.IntervalDayToSecondExpression;
 import org.apache.shardingsphere.sql.parser.sql.dialect.segment.oracle.interval.IntervalYearToMonthExpression;
 import org.apache.shardingsphere.sql.parser.sql.dialect.segment.oracle.join.OuterJoinExpression;
@@ -342,7 +342,7 @@ public final class ExpressionAssert {
         Iterator<ExpectedExpression> expectedIterator = expected.getParameters().iterator();
         Iterator<ExpressionSegment> actualIterator = actual.getParameters().iterator();
         while (expectedIterator.hasNext()) {
-            ExpressionAssert.assertExpression(assertContext, actualIterator.next(), expectedIterator.next());
+            assertExpression(assertContext, actualIterator.next(), expectedIterator.next());
         }
         if (null != expected.getOwner()) {
             OwnerAssert.assertIs(assertContext, actual.getOwner(), expected.getOwner());
@@ -583,7 +583,7 @@ public final class ExpressionAssert {
         Iterator<ExpectedExpression> expectedIterator = expected.getParameters().iterator();
         Iterator<ExpressionSegment> actualIterator = actual.getParameters().iterator();
         while (expectedIterator.hasNext()) {
-            ExpressionAssert.assertExpression(assertContext, actualIterator.next(), expectedIterator.next());
+            assertExpression(assertContext, actualIterator.next(), expectedIterator.next());
         }
     }
     

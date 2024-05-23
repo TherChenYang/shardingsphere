@@ -27,7 +27,7 @@ import org.apache.shardingsphere.infra.config.props.ConfigurationProperties;
 import org.apache.shardingsphere.infra.config.rule.RuleConfiguration;
 import org.apache.shardingsphere.infra.datasource.pool.config.DataSourceConfiguration;
 import org.apache.shardingsphere.infra.datasource.pool.destroyer.DataSourcePoolDestroyer;
-import org.apache.shardingsphere.infra.instance.InstanceContext;
+import org.apache.shardingsphere.infra.instance.ComputeNodeInstanceContext;
 import org.apache.shardingsphere.infra.instance.metadata.jdbc.JDBCInstanceMetaData;
 import org.apache.shardingsphere.infra.metadata.ShardingSphereMetaData;
 import org.apache.shardingsphere.infra.metadata.database.ShardingSphereDatabase;
@@ -39,7 +39,7 @@ import org.apache.shardingsphere.infra.state.datasource.DataSourceStateManager;
 import org.apache.shardingsphere.metadata.factory.ExternalMetaDataFactory;
 import org.apache.shardingsphere.metadata.factory.InternalMetaDataFactory;
 import org.apache.shardingsphere.metadata.persist.MetaDataPersistService;
-import org.apache.shardingsphere.mode.event.storage.StorageNodeDataSource;
+import org.apache.shardingsphere.mode.storage.QualifiedDataSourceStatus;
 import org.apache.shardingsphere.mode.manager.ContextManagerBuilderParameter;
 
 import javax.sql.DataSource;
@@ -64,12 +64,13 @@ public final class MetaDataContextsFactory {
      *
      * @param persistService persist service
      * @param param context manager builder parameter
-     * @param instanceContext instance context
+     * @param computeNodeInstanceContext compute node instance context
      * @return meta data contexts
      * @throws SQLException SQL exception
      */
-    public static MetaDataContexts create(final MetaDataPersistService persistService, final ContextManagerBuilderParameter param, final InstanceContext instanceContext) throws SQLException {
-        return create(persistService, param, instanceContext, Collections.emptyMap());
+    public static MetaDataContexts create(final MetaDataPersistService persistService, final ContextManagerBuilderParameter param,
+                                          final ComputeNodeInstanceContext computeNodeInstanceContext) throws SQLException {
+        return create(persistService, param, computeNodeInstanceContext, Collections.emptyMap());
     }
     
     /**
@@ -77,25 +78,25 @@ public final class MetaDataContextsFactory {
      * 
      * @param persistService persist service
      * @param param context manager builder parameter
-     * @param instanceContext instance context
-     * @param storageNodes storage nodes
+     * @param computeNodeInstanceContext compute node instance context
+     * @param statusMap qualified data source status map
      * @return meta data contexts
      * @throws SQLException SQL exception
      */
     public static MetaDataContexts create(final MetaDataPersistService persistService, final ContextManagerBuilderParameter param,
-                                          final InstanceContext instanceContext, final Map<String, StorageNodeDataSource> storageNodes) throws SQLException {
+                                          final ComputeNodeInstanceContext computeNodeInstanceContext, final Map<String, QualifiedDataSourceStatus> statusMap) throws SQLException {
         boolean isDatabaseMetaDataExisted = !persistService.getDatabaseMetaDataService().loadAllDatabaseNames().isEmpty();
         Map<String, DatabaseConfiguration> effectiveDatabaseConfigs = isDatabaseMetaDataExisted
-                ? createEffectiveDatabaseConfigurations(getDatabaseNames(instanceContext, param.getDatabaseConfigs(), persistService), param.getDatabaseConfigs(), persistService)
+                ? createEffectiveDatabaseConfigurations(getDatabaseNames(computeNodeInstanceContext, param.getDatabaseConfigs(), persistService), param.getDatabaseConfigs(), persistService)
                 : param.getDatabaseConfigs();
-        checkDataSourceStates(effectiveDatabaseConfigs, storageNodes, param.isForce());
+        checkDataSourceStates(effectiveDatabaseConfigs, statusMap, param.isForce());
         // TODO load global data sources from persist service
         Map<String, DataSource> globalDataSources = param.getGlobalDataSources();
         Collection<RuleConfiguration> globalRuleConfigs = isDatabaseMetaDataExisted ? persistService.getGlobalRuleService().load() : param.getGlobalRuleConfigs();
         ConfigurationProperties props = isDatabaseMetaDataExisted ? new ConfigurationProperties(persistService.getPropsService().load()) : new ConfigurationProperties(param.getProps());
         Map<String, ShardingSphereDatabase> databases = isDatabaseMetaDataExisted
-                ? InternalMetaDataFactory.create(persistService, effectiveDatabaseConfigs, props, instanceContext)
-                : ExternalMetaDataFactory.create(effectiveDatabaseConfigs, props, instanceContext);
+                ? InternalMetaDataFactory.create(persistService, effectiveDatabaseConfigs, props, computeNodeInstanceContext)
+                : ExternalMetaDataFactory.create(effectiveDatabaseConfigs, props, computeNodeInstanceContext);
         ResourceMetaData globalResourceMetaData = new ResourceMetaData(globalDataSources);
         RuleMetaData globalRuleMetaData = new RuleMetaData(GlobalRulesBuilder.buildRules(globalRuleConfigs, databases, props));
         MetaDataContexts result = new MetaDataContexts(persistService, new ShardingSphereMetaData(databases, globalResourceMetaData, globalRuleMetaData, props));
@@ -106,9 +107,9 @@ public final class MetaDataContextsFactory {
         return result;
     }
     
-    private static Collection<String> getDatabaseNames(final InstanceContext instanceContext,
+    private static Collection<String> getDatabaseNames(final ComputeNodeInstanceContext computeNodeInstanceContext,
                                                        final Map<String, DatabaseConfiguration> databaseConfigs, final MetaDataPersistService persistService) {
-        return instanceContext.getInstance().getMetaData() instanceof JDBCInstanceMetaData ? databaseConfigs.keySet() : persistService.getDatabaseMetaDataService().loadAllDatabaseNames();
+        return computeNodeInstanceContext.getInstance().getMetaData() instanceof JDBCInstanceMetaData ? databaseConfigs.keySet() : persistService.getDatabaseMetaDataService().loadAllDatabaseNames();
     }
     
     private static Map<String, DatabaseConfiguration> createEffectiveDatabaseConfigurations(final Collection<String> databaseNames,
@@ -130,8 +131,8 @@ public final class MetaDataContextsFactory {
         }
     }
     
-    private static void checkDataSourceStates(final Map<String, DatabaseConfiguration> databaseConfigs, final Map<String, StorageNodeDataSource> storageNodes, final boolean force) {
-        Map<String, DataSourceState> storageDataSourceStates = getStorageDataSourceStates(storageNodes);
+    private static void checkDataSourceStates(final Map<String, DatabaseConfiguration> databaseConfigs, final Map<String, QualifiedDataSourceStatus> statusMap, final boolean force) {
+        Map<String, DataSourceState> storageDataSourceStates = getStorageDataSourceStates(statusMap);
         databaseConfigs.forEach((key, value) -> {
             if (!value.getStorageUnits().isEmpty()) {
                 DataSourceStateManager.getInstance().initStates(key, value.getStorageUnits(), storageDataSourceStates, force);
@@ -139,9 +140,9 @@ public final class MetaDataContextsFactory {
         });
     }
     
-    private static Map<String, DataSourceState> getStorageDataSourceStates(final Map<String, StorageNodeDataSource> storageDataSourceStates) {
-        Map<String, DataSourceState> result = new HashMap<>(storageDataSourceStates.size(), 1F);
-        storageDataSourceStates.forEach((key, value) -> {
+    private static Map<String, DataSourceState> getStorageDataSourceStates(final Map<String, QualifiedDataSourceStatus> statusMap) {
+        Map<String, DataSourceState> result = new HashMap<>(statusMap.size(), 1F);
+        statusMap.forEach((key, value) -> {
             List<String> values = Splitter.on(".").splitToList(key);
             Preconditions.checkArgument(3 == values.size(), "Illegal data source of storage node.");
             String databaseName = values.get(0);

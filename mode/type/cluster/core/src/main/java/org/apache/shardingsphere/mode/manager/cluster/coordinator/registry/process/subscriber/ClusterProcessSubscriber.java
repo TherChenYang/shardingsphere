@@ -18,11 +18,13 @@
 package org.apache.shardingsphere.mode.manager.cluster.coordinator.registry.process.subscriber;
 
 import com.google.common.eventbus.Subscribe;
+import lombok.RequiredArgsConstructor;
 import org.apache.shardingsphere.infra.executor.sql.process.lock.ProcessOperationLockRegistry;
 import org.apache.shardingsphere.infra.executor.sql.process.yaml.YamlProcessList;
 import org.apache.shardingsphere.infra.executor.sql.process.yaml.swapper.YamlProcessListSwapper;
 import org.apache.shardingsphere.infra.instance.metadata.InstanceType;
 import org.apache.shardingsphere.infra.util.eventbus.EventBusContext;
+import org.apache.shardingsphere.infra.util.eventbus.EventSubscriber;
 import org.apache.shardingsphere.infra.util.yaml.YamlEngine;
 import org.apache.shardingsphere.metadata.persist.node.ComputeNode;
 import org.apache.shardingsphere.metadata.persist.node.ProcessNode;
@@ -41,21 +43,14 @@ import java.util.stream.Stream;
 /**
  * Cluster process subscriber.
  */
-@SuppressWarnings("UnstableApiUsage")
-public final class ClusterProcessSubscriber implements ProcessSubscriber {
+@RequiredArgsConstructor
+public final class ClusterProcessSubscriber implements ProcessSubscriber, EventSubscriber {
     
     private final PersistRepository repository;
     
     private final EventBusContext eventBusContext;
     
-    private final YamlProcessListSwapper swapper;
-    
-    public ClusterProcessSubscriber(final PersistRepository repository, final EventBusContext eventBusContext) {
-        this.repository = repository;
-        this.eventBusContext = eventBusContext;
-        swapper = new YamlProcessListSwapper();
-        eventBusContext.register(this);
-    }
+    private final YamlProcessListSwapper swapper = new YamlProcessListSwapper();
     
     @Override
     @Subscribe
@@ -78,7 +73,7 @@ public final class ClusterProcessSubscriber implements ProcessSubscriber {
     private void postShowProcessListData(final String taskId) {
         YamlProcessList yamlProcessList = new YamlProcessList();
         for (String each : repository.getChildrenKeys(ProcessNode.getProcessIdPath(taskId)).stream()
-                .map(each -> repository.getDirectly(ProcessNode.getProcessListInstancePath(taskId, each))).collect(Collectors.toList())) {
+                .map(each -> repository.query(ProcessNode.getProcessListInstancePath(taskId, each))).collect(Collectors.toList())) {
             yamlProcessList.getProcesses().addAll(YamlEngine.unmarshal(each, YamlProcessList.class).getProcesses());
         }
         eventBusContext.post(new ShowProcessListResponseEvent(swapper.swapToObject(yamlProcessList)));
@@ -91,7 +86,7 @@ public final class ClusterProcessSubscriber implements ProcessSubscriber {
     }
     
     private boolean isReady(final Collection<String> paths) {
-        return paths.stream().noneMatch(each -> null != repository.getDirectly(each));
+        return paths.stream().noneMatch(each -> null != repository.query(each));
     }
     
     @Override
