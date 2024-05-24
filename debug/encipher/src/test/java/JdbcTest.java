@@ -19,7 +19,7 @@ public class JdbcTest {
         DataSource dataSource = YamlShardingSphereDataSourceFactory.createDataSource(getFile("classpath:encrypt.yaml"));
         Connection connection = dataSource.getConnection();
         Statement statement = connection.createStatement();
-        ResultSet resultSet = statement.executeQuery("SELECT * FROM encrypt.dbo.t_user");
+        ResultSet resultSet = statement.executeQuery("SELECT * FROM t_user");
         while (resultSet.next()) {
             System.out.println(resultSet.getString(1)
                     + "," + resultSet.getString(2)

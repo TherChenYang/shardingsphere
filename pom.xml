@@ -36,7 +36,6 @@
         <module>db-protocol</module>
         <module>mode</module>
         <module>kernel</module>
-        <module>debug</module>
 
         <module>jdbc</module>
         <module>proxy</module>

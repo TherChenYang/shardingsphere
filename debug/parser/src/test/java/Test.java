@@ -2,6 +2,8 @@ import org.apache.shardingsphere.infra.database.core.type.DatabaseType;
 import org.apache.shardingsphere.infra.spi.type.typed.TypedSPILoader;
 import org.apache.shardingsphere.sql.parser.api.CacheOption;
 import org.apache.shardingsphere.sql.parser.api.SQLFormatEngine;
+import org.apache.shardingsphere.sql.parser.api.SQLParserEngine;
+import org.apache.shardingsphere.sql.parser.core.ParseASTNode;
 
 /**
  * @author: CY.Ma
@@ -11,7 +13,8 @@ import org.apache.shardingsphere.sql.parser.api.SQLFormatEngine;
 public class Test {
     public static void main(String[] args) {
         CacheOption cacheOption = new CacheOption(128, 1024L);
-        String mysql = new SQLFormatEngine(TypedSPILoader.getService(DatabaseType.class, "Mysql"), cacheOption).format("select * from test", false, null);
-        System.out.println(mysql);
+        ParseASTNode oracle = new SQLParserEngine(TypedSPILoader.getService(DatabaseType.class, "Oracle"), cacheOption)
+                .parse("select age from (select '0-1岁' age,count(*) countNum, '0' sortNum from T_EMPI_PATIENT_INFO t where t.birth > to_char((sysdate - interval '1' year(3)), 'yyyymmdd'))", false);
+        System.out.println(oracle);
     }
 }

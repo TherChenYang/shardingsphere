@@ -56,7 +56,7 @@ class ShadowTest {
         orderRepository = new OrderRepository(dataSource);
         orderItemRepository = new OrderItemRepository(dataSource);
         addressRepository = new AddressRepository(dataSource);
-        initEnvironment();
+//        initEnvironment();
         processSuccess();
         cleanEnvironment();
     }

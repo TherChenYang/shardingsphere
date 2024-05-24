@@ -1,20 +1,20 @@
-dataSources:
-  master:
-    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
-    driverClassName: com.microsoft.sqlserver.jdbc.SQLServerDriver
-    jdbcUrl: jdbc:sqlserver://localhost:1433;DatabaseName=encrypt;encrypt=false;
-    username: sa
-    password: MCYcxc19740203
-
-databaseName: encrypt
-
 #dataSources:
 #  master:
 #    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
-#    driverClassName: com.mysql.cj.jdbc.Driver
-#    jdbcUrl: jdbc:mysql://127.0.0.1:3306/encrypt?serverTimezone=GMT%2B8&characterEncoding=utf8&useSSL=true
-#    username: root
-#    password: mcycxc19740203
+#    driverClassName: com.microsoft.sqlserver.jdbc.SQLServerDriver
+#    jdbcUrl: jdbc:sqlserver://localhost:1433;DatabaseName=encrypt;encrypt=false;
+#    username: sa
+#    password: MCYcxc19740203
+
+databaseName: encrypt
+
+dataSources:
+  master:
+    dataSourceClassName: com.zaxxer.hikari.HikariDataSource
+    driverClassName: com.mysql.cj.jdbc.Driver
+    jdbcUrl: jdbc:mysql://127.0.0.1:3306/encrypt?serverTimezone=GMT%2B8&characterEncoding=utf8&useSSL=true
+    username: root
+    password: mcycxc19740203
 
 rules:
   - !ENCRYPT
