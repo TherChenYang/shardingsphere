@@ -43,12 +43,13 @@ public final class StandaloneContextManagerBuilder implements ContextManagerBuil
     
     @Override
     public ContextManager build(final ContextManagerBuilderParameter param, final EventBusContext eventBusContext) throws SQLException {
+        // 此处获取持久化配置的Repository的配置
         PersistRepositoryConfiguration repositoryConfig = param.getModeConfiguration().getRepository();
         StandalonePersistRepository repository = TypedSPILoader.getService(
                 StandalonePersistRepository.class, null == repositoryConfig ? null : repositoryConfig.getType(), null == repositoryConfig ? new Properties() : repositoryConfig.getProps());
-        MetaDataPersistService persistService = new MetaDataPersistService(repository);
+        MetaDataPersistService persistService = new MetaDataPersistService(repository); // 初始化元数据持久化服务
         ComputeNodeInstanceContext computeNodeInstanceContext = buildComputeNodeInstanceContext(param, eventBusContext);
-        MetaDataContexts metaDataContexts = MetaDataContextsFactory.create(persistService, param, computeNodeInstanceContext);
+        MetaDataContexts metaDataContexts = MetaDataContextsFactory.create(persistService, param, computeNodeInstanceContext); // 创建元数据上下文
         ContextManager result = new ContextManager(metaDataContexts, computeNodeInstanceContext);
         new StandaloneEventSubscriberRegistry(result).register();
         setContextManagerAware(result);

@@ -82,14 +82,14 @@ public final class WhereClauseShardingConditionEngine {
         String defaultSchemaName = new DatabaseTypeRegistry(sqlStatementContext.getDatabaseType()).getDefaultSchemaName(database.getName());
         ShardingSphereSchema schema = sqlStatementContext.getTablesContext().getSchemaName()
                 .map(database::getSchema).orElseGet(() -> database.getSchema(defaultSchemaName));
-        Map<String, String> columnExpressionTableNames = sqlStatementContext.getTablesContext().findTableNamesByColumnSegment(columnSegments, schema);
+        Map<String, String> columnExpressionTableNames = sqlStatementContext.getTablesContext().findTableNamesByColumnSegment(columnSegments, schema); // 找到column字段与表名的对应关系
         List<ShardingCondition> result = new ArrayList<>();
         for (WhereSegment each : ((WhereAvailable) sqlStatementContext).getWhereSegments()) {
             result.addAll(createShardingConditions(each.getExpr(), params, columnExpressionTableNames));
         }
         return result;
     }
-    
+
     private Collection<ShardingCondition> createShardingConditions(final ExpressionSegment expression, final List<Object> params, final Map<String, String> columnExpressionTableNames) {
         Collection<AndPredicate> andPredicates = ExpressionExtractUtils.getAndPredicates(expression);
         Collection<ShardingCondition> result = new LinkedList<>();
@@ -112,7 +112,7 @@ public final class WhereClauseShardingConditionEngine {
         for (ExpressionSegment each : predicates) {
             for (ColumnSegment columnSegment : ColumnExtractor.extract(each)) {
                 Optional<String> tableName = Optional.ofNullable(columnTableNames.get(columnSegment.getExpression()));
-                Optional<String> shardingColumn = tableName.flatMap(optional -> shardingRule.findShardingColumn(columnSegment.getIdentifier().getValue(), optional));
+                Optional<String> shardingColumn = tableName.flatMap(optional -> shardingRule.findShardingColumn(columnSegment.getColumnBoundedInfo().getOriginalColumn().getValue(), optional));
                 if (!tableName.isPresent() || !shardingColumn.isPresent()) {
                     continue;
                 }

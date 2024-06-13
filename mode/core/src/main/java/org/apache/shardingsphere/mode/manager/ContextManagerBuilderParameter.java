@@ -36,16 +36,31 @@ import java.util.Properties;
 @RequiredArgsConstructor
 @Getter
 public final class ContextManagerBuilderParameter {
-    
+
+    /**
+     * 模式配置 standalone or cluster
+     */
     @Getter(AccessLevel.NONE)
     private final ModeConfiguration modeConfig;
-    
+
+    /**
+     * 数据源相关配置
+     */
     private final Map<String, DatabaseConfiguration> databaseConfigs;
-    
+
+    /**
+     * 全局数据源配置
+     */
     private final Map<String, DataSource> globalDataSources;
-    
+
+    /**
+     * 全局规则配置
+     */
     private final Collection<RuleConfiguration> globalRuleConfigs;
-    
+
+    /**
+     * 扩展配置
+     */
     private final Properties props;
     
     private final Collection<String> labels;

@@ -69,8 +69,8 @@ public final class ExternalMetaDataFactory {
         DatabaseType protocolType = DatabaseTypeEngine.getProtocolType(databaseConfigMap, props);
         SystemDatabase systemDatabase = new SystemDatabase(protocolType);
         Map<String, ShardingSphereDatabase> result = new ConcurrentHashMap<>(databaseConfigMap.size() + systemDatabase.getSystemDatabaseSchemaMap().size(), 1F);
-        result.putAll(createGenericDatabases(databaseConfigMap, protocolType, systemDatabase, props, computeNodeInstanceContext));
-        result.putAll(createSystemDatabases(databaseConfigMap, protocolType, systemDatabase, props));
+        result.putAll(createGenericDatabases(databaseConfigMap, protocolType, systemDatabase, props, computeNodeInstanceContext)); // 加载用户自定义表
+        result.putAll(createSystemDatabases(databaseConfigMap, protocolType, systemDatabase, props)); // 加载系统默认表
         return result;
     }
     

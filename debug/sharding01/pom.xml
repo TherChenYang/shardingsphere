@@ -5,20 +5,11 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>org.apache.shardingsphere</groupId>
-        <artifactId>shardingsphere</artifactId>
+        <artifactId>debug</artifactId>
         <version>5.5.1-SNAPSHOT</version>
     </parent>
 
-    <artifactId>debug</artifactId>
-    <packaging>pom</packaging>
-    <modules>
-        <module>encipher</module>
-        <module>sharding</module>
-        <module>parser</module>
-        <module>shadow</module>
-        <module>test</module>
-        <module>sharding01</module>
-    </modules>
+    <artifactId>sharding01</artifactId>
 
     <properties>
         <maven.compiler.source>11</maven.compiler.source>
@@ -28,9 +19,15 @@
 
     <dependencies>
         <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <version>8.3.0</version>
+        </dependency>
+        <dependency>
             <groupId>org.apache.shardingsphere</groupId>
             <artifactId>shardingsphere-jdbc</artifactId>
             <version>${project.version}</version>
         </dependency>
     </dependencies>
+
 </project>

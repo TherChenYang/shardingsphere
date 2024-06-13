@@ -85,12 +85,12 @@ public final class MetaDataContextsFactory {
      */
     public static MetaDataContexts create(final MetaDataPersistService persistService, final ContextManagerBuilderParameter param,
                                           final ComputeNodeInstanceContext computeNodeInstanceContext, final Map<String, QualifiedDataSourceStatus> statusMap) throws SQLException {
-        boolean isDatabaseMetaDataExisted = !persistService.getDatabaseMetaDataService().loadAllDatabaseNames().isEmpty();
+        boolean isDatabaseMetaDataExisted = !persistService.getDatabaseMetaDataService().loadAllDatabaseNames().isEmpty(); // 检测是否存在已经持久化的数据源
         Map<String, DatabaseConfiguration> effectiveDatabaseConfigs = isDatabaseMetaDataExisted
                 ? createEffectiveDatabaseConfigurations(getDatabaseNames(computeNodeInstanceContext, param.getDatabaseConfigs(), persistService), param.getDatabaseConfigs(), persistService)
-                : param.getDatabaseConfigs();
+                : param.getDatabaseConfigs(); // 根据检测结果获取数据源配置
         checkDataSourceStates(effectiveDatabaseConfigs, statusMap, param.isForce());
-        // TODO load global data sources from persist service
+        // 如果存在已经持久化过的数据源，重新进行加载
         Map<String, DataSource> globalDataSources = param.getGlobalDataSources();
         Collection<RuleConfiguration> globalRuleConfigs = isDatabaseMetaDataExisted ? persistService.getGlobalRuleService().load() : param.getGlobalRuleConfigs();
         ConfigurationProperties props = isDatabaseMetaDataExisted ? new ConfigurationProperties(persistService.getPropsService().load()) : new ConfigurationProperties(param.getProps());

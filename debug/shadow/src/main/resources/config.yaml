@@ -40,6 +40,9 @@ dataSources:
     maxPoolSize: 10
 
 rules:
+- !SINGLE
+  tables:
+    - "*.*"
 - !SHADOW
   tables:
     t_order:

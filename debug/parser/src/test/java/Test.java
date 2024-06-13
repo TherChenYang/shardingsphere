@@ -13,8 +13,8 @@ import org.apache.shardingsphere.sql.parser.core.ParseASTNode;
 public class Test {
     public static void main(String[] args) {
         CacheOption cacheOption = new CacheOption(128, 1024L);
-        ParseASTNode oracle = new SQLParserEngine(TypedSPILoader.getService(DatabaseType.class, "Oracle"), cacheOption)
-                .parse("select age from (select '0-1岁' age,count(*) countNum, '0' sortNum from T_EMPI_PATIENT_INFO t where t.birth > to_char((sysdate - interval '1' year(3)), 'yyyymmdd'))", false);
+        ParseASTNode oracle = new SQLParserEngine(TypedSPILoader.getService(DatabaseType.class, "OpenGuass"), cacheOption)
+                .parse("SELECT * FROM (SELECT account_id aliased_account_id FROM t_account_0) WHERE aliased_account_id  = ?", false);
         System.out.println(oracle);
     }
 }
